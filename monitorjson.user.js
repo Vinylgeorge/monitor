@@ -1,5 +1,5 @@
 // ==UserScript==
-// @name        MTurk HIT → JSONBin (Append Correctly)
+// @name        MTurk Queue → JSONBin (Full Snapshot)
 // @namespace   Violentmonkey Scripts
 // @match       https://worker.mturk.com/tasks*
 // @grant       GM_xmlhttpRequest
@@ -10,58 +10,57 @@
 
   const binId = "68c88afcd0ea881f407f17fd"; // your Bin ID
   const apiKey = "$2a$10$tGWSdPOsZbt7ecxcUqPwaOPrtBrw84TrZQDZtPvWN5Hpm595sHtUm"; // your API key
-  const baseUrl = `https://api.jsonbin.io/v3/b/${binId}/latest`;
+  const putUrl = `https://api.jsonbin.io/v3/b/${binId}`;
 
-  function appendHitToJsonBin(newHit) {
-    // Step 1: Fetch existing data
+  function saveQueueToJsonBin(hits) {
     GM_xmlhttpRequest({
-      method: "GET",
-      url: baseUrl,
+      method: "PUT",
+      url: putUrl,
       headers: {
+        "Content-Type": "application/json",
         "X-Master-Key": apiKey
       },
-      onload: res => {
-        try {
-          const body = JSON.parse(res.responseText);
-          let hits = Array.isArray(body.record) ? body.record : [];
-
-          // Step 2: Append new HIT
-          hits.push(newHit);
-
-          // Step 3: Save back
-          GM_xmlhttpRequest({
-            method: "PUT",
-            url: `https://api.jsonbin.io/v3/b/${binId}`,
-            headers: {
-              "Content-Type": "application/json",
-              "X-Master-Key": apiKey
-            },
-            data: JSON.stringify(hits),
-            onload: r => console.log("✅ HIT appended:", r.responseText),
-            onerror: e => console.error("❌ Error saving HIT:", e)
-          });
-        } catch (err) {
-          console.error("❌ Error parsing JSONBin response:", err, res.responseText);
-        }
-      },
-      onerror: err => console.error("❌ Error fetching bin:", err)
+      data: JSON.stringify(hits),
+      onload: r => console.log("✅ Queue saved:", r.responseText),
+      onerror: e => console.error("❌ Error saving queue:", e)
     });
   }
 
-  // Example test HIT
-  const exampleHit = {
-    event: "hit_accepted",
-    requester: "Shopping Receipts",
-    reward: "0.01",
-    workerId: "A27WGJXVQ1H0UB",
-    assignmentId: "31QTRG6Q2UXOQYJNSRS5PPNZ893PY6",
-    hitId: "372AGES0I4OHGMCYAL5RMMK99WYXRR",
-    title: "Extract General Data & Items From Shopping Receipt",
-    timeRemainingSeconds: 3599,
-    time: new Date().toISOString()
-  };
+  function scrapeQueue() {
+    const rows = document.querySelectorAll("table tbody tr");
+    let hits = [];
 
-  // Test send
-  appendHitToJsonBin(exampleHit);
+    rows.forEach(row => {
+      const cols = row.querySelectorAll("td");
+      if (cols.length) {
+        hits.push({
+          requester: cols[0]?.innerText.trim(),
+          title: cols[1]?.innerText.trim(),
+          reward: cols[2]?.innerText.trim().replace("$", ""),
+          timeRemainingSeconds: parseTime(cols[3]?.innerText.trim()),
+          acceptedAt: new Date().toISOString()
+        });
+      }
+    });
+
+    if (hits.length) {
+      saveQueueToJsonBin(hits);
+    } else {
+      console.log("ℹ️ No HITs found in queue.");
+    }
+  }
+
+  function parseTime(str) {
+    if (!str) return null;
+    const match = str.match(/(\d+)m\s*(\d+)s/);
+    if (match) {
+      return parseInt(match[1], 10) * 60 + parseInt(match[2], 10);
+    }
+    return null;
+  }
+
+  // Run once & refresh every 10s
+  scrapeQueue();
+  setInterval(scrapeQueue, 10000);
 
 })();
