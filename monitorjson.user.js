@@ -1,5 +1,5 @@
 // ==UserScript==
-// @name        MTurk Queue → JSONBin (Live Data)
+// @name        MTurk Queue → JSONBin (Live API Data)
 // @namespace   Violentmonkey Scripts
 // @match       https://worker.mturk.com/tasks*
 // @grant       GM_xmlhttpRequest
@@ -12,7 +12,6 @@
   const apiKey = "$2a$10$tGWSdPOsZbt7ecxcUqPwaOPrtBrw84TrZQDZtPvWN5Hpm595sHtUm"; // your API key
   const putUrl = `https://api.jsonbin.io/v3/b/${binId}`;
 
-  // Send current queue snapshot to JSONBin
   function saveQueueToJsonBin(hits) {
     GM_xmlhttpRequest({
       method: "PUT",
@@ -27,43 +26,20 @@
     });
   }
 
-  // Scrape HITs from MTurk Queue page
-  function scrapeQueue() {
-    const rows = document.querySelectorAll("table tbody tr");
-    let hits = [];
+  function fetchQueue() {
+    GM_xmlhttpRequest({
+      method: "GET",
+      url: "https://worker.mturk.com/api/tasks?limit=100",
+      headers: {
+        "Accept": "application/json"
+      },
+      onload: res => {
+        try {
+          const body = JSON.parse(res.responseText);
+          const tasks = body.tasks || [];
 
-    rows.forEach(row => {
-      const cols = row.querySelectorAll("td");
-      if (cols.length) {
-        hits.push({
-          requester: cols[0]?.innerText.trim(),
-          title: cols[1]?.innerText.trim(),
-          reward: cols[2]?.innerText.trim().replace("$", ""),
-          timeRemainingSeconds: parseTime(cols[3]?.innerText.trim()),
-          acceptedAt: new Date().toISOString()
-        });
-      }
-    });
-
-    if (hits.length) {
-      saveQueueToJsonBin(hits);
-    } else {
-      console.log("ℹ️ No HITs currently in queue.");
-    }
-  }
-
-  // Convert "XXm YYs" → seconds
-  function parseTime(str) {
-    if (!str) return null;
-    const match = str.match(/(\d+)m\s*(\d+)s/);
-    if (match) {
-      return parseInt(match[1], 10) * 60 + parseInt(match[2], 10);
-    }
-    return null;
-  }
-
-  // Run immediately and refresh every 10s
-  scrapeQueue();
-  setInterval(scrapeQueue, 10000);
-
-})();
+          const hits = tasks.map(t => ({
+            requester: t.requester?.name || "Unknown",
+            title: t.title || "N/A",
+            reward: t.reward?.amount_in_dollars || "0.00",
+            workerId: t.assignment_id || "",   // not alw_
