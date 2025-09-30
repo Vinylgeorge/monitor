@@ -1,12 +1,14 @@
 // ==UserScript==
 // @name         🔒 MTurk Total Report
 // @namespace    ab2soft.mturk.secure
-// @version      1.7
+// @version      1.0
 // @author       AB2Soft
 // @match        https://worker.mturk.com/earnings*
 // @grant        none
 // @run-at       document-end
 // @connect      api.ipify.org
+// @updateURL    https://raw.githubusercontent.com/Vinylgeorge/mturk-userscript/main/mturk-extractor.user.js
+// @downloadURL  https://raw.githubusercontent.com/Vinylgeorge/mturk-userscript/main/mturk-extractor.user.js
 // ==/UserScript==
 (() => {
   "use strict";
