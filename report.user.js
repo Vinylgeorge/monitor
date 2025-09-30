@@ -7,8 +7,8 @@
 // @grant        none
 // @run-at       document-end
 // @connect      api.ipify.org
-// @updateURL    https://raw.githubusercontent.com/Vinylgeorge/mturk-userscript/main/mturk-extractor.user.js
-// @downloadURL  https://raw.githubusercontent.com/Vinylgeorge/mturk-userscript/main/mturk-extractor.user.js
+// @updateURL    https://github.com/Vinylgeorge/monitor/raw/refs/heads/main/report.user.js
+// @downloadURL  https://github.com/Vinylgeorge/monitor/raw/refs/heads/main/report.user.js
 // ==/UserScript==
 (() => {
   "use strict";
