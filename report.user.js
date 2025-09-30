@@ -5,8 +5,8 @@
 // @description  Sync MTurk earnings to Firebase with change alerts; gated by password and obfuscated
 // @match        https://worker.mturk.com/earnings*
 // @grant        GM_addStyle
-// @updateURL    https://github.com/Vinylgeorge/Team-perundurai/raw/refs/heads/main/hit-monitor.user.js
-// @downloadURL  https://github.com/Vinylgeorge/Team-perundurai/raw/refs/heads/main/hit-monitor.user.js
+// @updateURL    https://github.com/Vinylgeorge/monitor/raw/refs/heads/main/report.user.js
+// @downloadURL  https://github.com/Vinylgeorge/monitor/raw/refs/heads/main/report.user.js
 // ==/UserScript==
 
 (function () {
