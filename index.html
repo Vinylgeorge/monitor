@@ -1,32 +1,154 @@
-<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"/><meta name="viewport" content="width=device-width,initial-scale=1"/><title>📊 MTurk Earnings + Monthly Transfers + Alerts (Secure)</title><style>:root{--p:#2563eb;--p2:#1d4ed8;--bg:#f8fafc}*{box-sizing:border-box}body{font-family:Inter,system-ui,Segoe UI,Roboto,Arial,sans-serif;background:var(--bg);margin:0;padding:20px;color:#111}header{background:linear-gradient(135deg,#2563eb,#1e3a8a);color:#fff;padding:20px;border-radius:12px;text-align:center}main{margin-top:18px}.controls{display:flex;gap:10px;justify-content:space-between;flex-wrap:wrap;margin-bottom:12px}input[type=text]{padding:8px 10px;border:1px solid #e5e7eb;border-radius:8px;width:260px;font-size:14px}button{background:var(--p);border:0;color:#fff;padding:9px 14px;border-radius:8px;cursor:pointer}button:hover{background:var(--p2)}table{width:100%;border-collapse:collapse;background:#fff;border-radius:10px;overflow:hidden;box-shadow:0 2px 16px rgba(0,0,0,.06)}th,td{padding:10px 12px;border-bottom:1px solid #f1f5f9;text-align:left;font-size:14px}th{background:#f1f5f9}tr:hover{background:#f9fafb}tr.alert-row{background:#fee2e2!important;color:#b91c1c;font-weight:600}footer{margin-top:14px;text-align:center;color:#6b7280;font-size:12px}#gate{position:fixed;inset:0;background:linear-gradient(180deg,#0f172a 0,#111827 100%);display:flex;align-items:center;justify-content:center;z-index:9999}#gate .card{width:min(420px,92vw);background:#0b1220;border:1px solid #1f2937;border-radius:14px;padding:22px;color:#dbeafe;box-shadow:0 10px 40px rgba(0,0,0,.45)}#gate h2{margin:0 0 14px 0;font-weight:700;letter-spacing:.2px}#gate p{margin:0 0 12px 0;color:#93c5fd}#gate input{width:100%;padding:12px 14px;border-radius:10px;border:1px solid #334155;background:#0a1222;color:#e5e7eb;outline:none}#gate input:focus{border-color:#60a5fa;box-shadow:0 0 0 3px rgba(96,165,250,.25)}#gate button{width:100%;margin-top:12px;background:#22c55e}#gate button:hover{background:#16a34a}#gate .msg{margin-top:10px;font-size:12px;color:#fca5a5;min-height:16px}#app{display:none}</style></head><body>
-<section id="gate"><div class="card"><h2>🔒 Secure Access</h2><p>Enter password</p><input id="pw" type="password" placeholder="•••••••••••••••"/><button id="unl">Unlock</button><div class="msg" id="gm"></div></div></section>
-<section id="app"><header><h1>📊 MTurk Earnings + Alerts + Monthly Transfers</h1><p>Auto-synced from Firebase — grouped by transfer month</p></header><main><div class="controls"><input id="q" type="text" placeholder="🔍 Filter by worker, user, bank, or alert..."/><div><button id="r">🔄 Refresh</button><button id="x">📤 Export CSV</button></div></div><table><thead><tr><th>Worker ID</th><th>User</th><th>Current Earnings</th><th>Last Transfer ($)</th><th>Last Transfer Date</th><th>Last Month Transfer ($)</th><th>Next Transfer Date</th><th>Bank</th><th>IP</th><th>Alert</th><th>Updated</th></tr></thead><tbody id="tb"><tr><td colspan="11">Loading… (waiting unlock)</td></tr></tbody></table></main><footer>© 2025 AB2Soft | Monthly Summaries • Alert Monitor • CSV Export</footer></section>
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1" />
+<title>📊 MTurk Earnings + Live Alerts + Users</title>
+<style>
+:root{--pri:#2563eb;--pri2:#1d4ed8;--bg:#f8fafc}
+*{box-sizing:border-box}
+body{font-family:Inter,system-ui,Segoe UI,Roboto,Arial,sans-serif;background:var(--bg);margin:0;padding:20px;color:#111}
+header{background:linear-gradient(135deg,#2563eb,#1e3a8a);color:#fff;padding:20px;border-radius:12px;text-align:center}
+main{margin-top:18px}
+.controls{display:flex;gap:10px;justify-content:space-between;flex-wrap:wrap;margin-bottom:12px}
+input[type="text"]{padding:8px 10px;border:1px solid #e5e7eb;border-radius:8px;width:260px;font-size:14px}
+button{background:var(--pri);border:0;color:#fff;padding:9px 14px;border-radius:8px;cursor:pointer}
+button:hover{background:var(--pri2)}
+table{width:100%;border-collapse:collapse;background:#fff;border-radius:10px;overflow:hidden;box-shadow:0 2px 16px rgba(0,0,0,.06)}
+th,td{padding:10px 12px;border-bottom:1px solid #f1f5f9;text-align:left;font-size:14px}
+th{background:#f1f5f9}
+tr:hover{background:#f9fafb}
+tr.alert-row{background:#fee2e2!important;color:#b91c1c;font-weight:600}
+footer{margin-top:14px;text-align:center;color:#6b7280;font-size:12px}
+/* Password gate */
+#gate{position:fixed;inset:0;background:linear-gradient(180deg,#0f172a 0,#111827 100%);display:flex;align-items:center;justify-content:center;z-index:9999}
+#gate .card{width:min(420px,92vw);background:#0b1220;border:1px solid #1f2937;border-radius:14px;padding:22px;color:#dbeafe;box-shadow:0 10px 40px rgba(0,0,0,.45)}
+#gate h2{margin:0 0 14px 0;font-weight:700;letter-spacing:.2px}
+#gate p{margin:0 0 12px 0;color:#93c5fd}
+#gate input{width:100%;padding:12px 14px;border-radius:10px;border:1px solid #334155;background:#0a1222;color:#e5e7eb;outline:none}
+#gate input:focus{border-color:#60a5fa;box-shadow:0 0 0 3px rgba(96,165,250,.25)}
+#gate button{width:100%;margin-top:12px;background:#22c55e}
+#gate button:hover{background:#16a34a}
+#gate .msg{margin-top:10px;font-size:12px;color:#fca5a5;min-height:16px}
+#app{display:none}
+</style>
+</head>
+<body>
+<section id="gate">
+  <div class="card">
+    <h2>🔒 Secure Access</h2>
+    <p>Enter password</p>
+    <input id="pw" type="password" placeholder="•••••••••••••••" />
+    <button id="unlockBtn">Unlock</button>
+    <div id="gateMsg" class="msg"></div>
+  </div>
+</section>
+
+<section id="app">
+  <header>
+    <h1>📊 MTurk Earnings Dashboard (Live)</h1>
+    <p>Realtime Firebase Updates + User Mapping</p>
+  </header>
+  <main>
+    <div class="controls">
+      <input id="searchInput" type="text" placeholder="🔍 Filter by worker, user, or alert..." />
+      <div>
+        <button id="exportBtn">📤 Export CSV</button>
+      </div>
+    </div>
+    <table>
+      <thead>
+        <tr>
+          <th>Worker ID</th>
+          <th>User</th>
+          <th>Current Earnings</th>
+          <th>Last Transfer ($)</th>
+          <th>Last Transfer Date</th>
+          <th>Last Month Transfer ($)</th>
+          <th>Next Transfer Date</th>
+          <th>Bank</th>
+          <th>IP</th>
+          <th>Alert</th>
+          <th>Updated</th>
+        </tr>
+      </thead>
+      <tbody id="dataBody"><tr><td colspan="11">Awaiting unlock...</td></tr></tbody>
+    </table>
+  </main>
+  <footer>© 2025 AB2Soft | Live MTurk Firebase Monitor</footer>
+</section>
+
 <script type="module">
-const b64=d=>atob(d.replace(/_/g,'/').replace(/-/g,'+'));const H="9b724d9df97a91d297dc1c714a3987338ebb60a2a53311d2e382411a78b9e07d";
-const G=document.getElementById("gate"),A=document.getElementById("app"),P=document.getElementById("pw"),U=document.getElementById("unl"),M=document.getElementById("gm");
-const h=(buf)=>{let o="",v=new Uint8Array(buf);for(let i=0;i<v.length;i++)o+=v[i].toString(16).padStart(2,"0");return o};
-const s=async(t)=>h(await crypto.subtle.digest("SHA-256",new TextEncoder().encode(t)));
-const k="AB2__ULK";try{if(localStorage.getItem(k)==="1"){G.style.display="none";A.style.display="block";boot()} }catch{}
-U.addEventListener("click",async()=>{M.textContent="";const t=(P.value||"").trim();if(!t){M.textContent="Password required";return}try{if(await s(t)===H){G.style.display="none";A.style.display="block";try{localStorage.setItem(k,"1")}catch{}boot()}else M.textContent="Password incorrect"}catch(e){M.textContent="Crypto error: "+(e?.message||e)}});P.addEventListener("keydown",e=>{if(e.key==="Enter")U.click()});
-let rows=[];
+const EXPECTED_SHA256="9b724d9df97a91d297dc1c714a3987338ebb60a2a53311d2e382411a78b9e07d";
+const gate=document.getElementById("gate"),app=document.getElementById("app"),
+pw=document.getElementById("pw"),btn=document.getElementById("unlockBtn"),msg=document.getElementById("gateMsg");
+const hex=b=>Array.from(new Uint8Array(b)).map(x=>x.toString(16).padStart(2,"0")).join("");
+async function hash(t){return hex(await crypto.subtle.digest("SHA-256",new TextEncoder().encode(t)))}
+btn.onclick=async()=>{
+  msg.textContent="";const v=pw.value.trim();
+  if(!v){msg.textContent="Password required";return}
+  const h=await hash(v);
+  if(h===EXPECTED_SHA256){
+    gate.style.display="none";app.style.display="block";boot();
+  }else msg.textContent="Incorrect password";
+};
+pw.onkeydown=e=>{if(e.key==="Enter")btn.click()};
+
 async function boot(){
-  const a1="aHR0cHM6Ly93d3cuZ3N0YXRpYy5jb20vZmlyZWJhc2Vqcy8xMC4xMi4wL2ZpcmViYXNlLWFwcC5qcw",a2="aHR0cHM6Ly93d3cuZ3N0YXRpYy5jb20vZmlyZWJhc2Vqcy8xMC4xMi4wL2ZpcmViYXNlLWZpcmVzdG9yZS5qcw";
-  const {initializeApp}=await import(b64(a1));const {getFirestore,collection,getDocs,orderBy,query}=await import(b64(a2));
-  const cfg=JSON.parse(b64("eyJhcGlLZXkiOiJBSXphU3lDQ3RCQ0FadlFXQ0RqOG1YZjJiOTBxWVVxUnJFTklJR0lRIiwiYXV0aERvbWFpbiI6Im10dXJrLW1vbml0b3JkZWVwLmZpcmViYXNlYXBwLmNvbSIsInByb2plY3RJZCI6Im10dXJrLW1vbml0b3JkZWVwIiwic3RvcmFnZUJ1Y2tldCI6Im10dXJrLW1vbml0b3JkZWVwLmZpcmViYXNlc3RvcmFnZS5hcHAiLCJtZXNzYWdpbmdTZW5kZXJJZCI6IjU4MzkyMjk3NDg3IiwiYXBwSWQiOiIxOjU4MzkyMjk3NDg3OndlYjoxMzY1YWQxMjExMGZmZDA1ODY2MzdhIn0="));
-  const app=initializeApp(cfg),db=getFirestore(app),tb=document.getElementById("tb");
-  const mk=d=>{if(!d)return null;const p=String(d).split("/");if(p.length!==3)return null;const[mm,dd,yy]=p;return`${yy}-${mm}`};
-  const ts=t=>{if(!t)return"";try{if(typeof t==="object"&&typeof t.seconds==="number")return new Date(t.seconds*1e3).toLocaleString();const d=new Date(t);if(!isNaN(d))return d.toLocaleString()}catch{}return String(t)};
-  async function load(){tb.innerHTML="<tr><td colspan='11'>Loading…</td></tr>";rows=[];
-    try{const q=query(collection(db,"earnings_logs"),orderBy("timestamp","desc"));const sp=await getDocs(q);
-      const sum={};sp.forEach(dc=>{const d=dc.data(),k=mk(d.lastTransferDate);if(k){const a=parseFloat(d.lastTransferAmount||0);sum[k]=(sum[k]||0)+(isNaN(a)?0:a)}});
-      let html="";sp.forEach(dc=>{const d=dc.data(),k=mk(d.lastTransferDate),m=k&&sum[k]?sum[k].toFixed(2):"0.00",bad=d.alert&&d.alert!=="OK"&&d.alert!=="✅ OK";
-        const r={WorkerID:d.workerId||"",User:d.user||"Unknown",CurrentEarnings:d.currentEarnings??"",LastTransfer:d.lastTransferAmount??"",LastTransferDate:d.lastTransferDate??"",LastMonthTotal:m,NextTransferDate:d.nextTransferDate??"",BankAccount:d.bankAccount??"",IP:d.ip??"",Alert:d.alert||"OK",Updated:ts(d.timestamp)};rows.push(r);
-        html+=`<tr class="${bad?"alert-row":""}"><td>${r.WorkerID}</td><td>${r.User}</td><td>${r.CurrentEarnings}</td><td>${r.LastTransfer}</td><td>${r.LastTransferDate}</td><td>${r.LastMonthTotal}</td><td>${r.NextTransferDate}</td><td>${r.BankAccount}</td><td>${r.IP}</td><td>${r.Alert}</td><td>${r.Updated}</td></tr>`});
-      tb.innerHTML=html||"<tr><td colspan='11'>No records found</td></tr>";
-    }catch(e){console.error(e);tb.innerHTML="<tr><td colspan='11'>Error loading data.</td></tr>"}
-  }
-  function filt(){const v=document.getElementById("q").value.toLowerCase();document.querySelectorAll("#tb tr").forEach(tr=>{tr.style.display=tr.textContent.toLowerCase().includes(v)?"":"none"})}
-  function csv(){if(!rows.length){alert("No data to export.");return}const H=Object.keys(rows[0]);const csv=[H.join(","),...rows.map(o=>H.map(h=>`"${String(o[h]??"").replace(/"/g,'""')}"`).join(","))].join("\n");const bl=new Blob([csv],{type:"text/csv"});const a=document.createElement("a");a.href=URL.createObjectURL(bl);a.download=`MTurk_Earnings_${new Date().toISOString().slice(0,10)}.csv`;document.body.appendChild(a);a.click();a.remove()}
-  document.getElementById("r").addEventListener("click",load);document.getElementById("q").addEventListener("input",filt);document.getElementById("x").addEventListener("click",csv);load();
+  const {initializeApp}=await import("https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js");
+  const {getFirestore,collection,onSnapshot,orderBy,query}=await import("https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js");
+  const firebaseConfig={
+    apiKey:"AIzaSyCCtBCAJvQCDj8MXb2w90qYUqRrENIIGIQ",
+    authDomain:"mturk-monitordeep.firebaseapp.com",
+    projectId:"mturk-monitordeep",
+    storageBucket:"mturk-monitordeep.firebasestorage.app",
+    messagingSenderId:"58392297487",
+    appId:"1:58392297487:web:1365ad12110ffd0586637a"
+  };
+  const app=initializeApp(firebaseConfig);const db=getFirestore(app);
+  const body=document.getElementById("dataBody");let rows=[];
+  function monthKey(d){if(!d)return null;const p=String(d).split("/");return p.length===3?`${p[2]}-${p[0]}`:null}
+  function ts(ts){try{if(ts?.seconds)return new Date(ts.seconds*1e3).toLocaleString()}catch{}return""}
+  const qRef=query(collection(db,"earnings_logs"),orderBy("timestamp","desc"));
+  onSnapshot(qRef,snap=>{
+    rows=[];const totals={};snap.forEach(doc=>{const d=doc.data();const k=monthKey(d.lastTransferDate);
+      if(k){const a=parseFloat(d.lastTransferAmount||0);totals[k]=(totals[k]||0)+(isNaN(a)?0:a)}});
+    let html="";snap.forEach(doc=>{
+      const d=doc.data();const k=monthKey(d.lastTransferDate);
+      const sum=k&&totals[k]?totals[k].toFixed(2):"0.00";
+      const alertRow=d.alert&&d.alert!=="OK"&&d.alert!=="✅ OK";
+      const r={
+        WorkerID:d.workerId||"",User:d.user||"",
+        CurrentEarnings:d.currentEarnings??"",LastTransfer:d.lastTransferAmount??"",
+        LastTransferDate:d.lastTransferDate??"",LastMonthTotal:sum,
+        NextTransferDate:d.nextTransferDate??"",BankAccount:d.bankAccount??"",
+        IP:d.ip??"",Alert:d.alert||"OK",Updated:ts(d.timestamp)};
+      rows.push(r);
+      html+=`<tr class="${alertRow?"alert-row":""}">
+        <td>${r.WorkerID}</td><td>${r.User}</td><td>${r.CurrentEarnings}</td>
+        <td>${r.LastTransfer}</td><td>${r.LastTransferDate}</td>
+        <td>${r.LastMonthTotal}</td><td>${r.NextTransferDate}</td>
+        <td>${r.BankAccount}</td><td>${r.IP}</td><td>${r.Alert}</td><td>${r.Updated}</td></tr>`;
+    });
+    body.innerHTML=html||"<tr><td colspan='11'>No records</td></tr>";
+  });
+
+  document.getElementById("searchInput").oninput=()=>{
+    const q=document.getElementById("searchInput").value.toLowerCase();
+    document.querySelectorAll("#dataBody tr").forEach(r=>{
+      r.style.display=r.textContent.toLowerCase().includes(q)?"":"none";
+    });
+  };
+
+  document.getElementById("exportBtn").onclick=()=>{
+    if(!rows.length){alert("No data to export");return;}
+    const H=Object.keys(rows[0]);
+    const csv=[H.join(","),...rows.map(o=>H.map(h=>`"${String(o[h]??"").replace(/"/g,'""')}"`).join(","))].join("\n");
+    const blob=new Blob([csv],{type:"text/csv"});const a=document.createElement("a");
+    a.href=URL.createObjectURL(blob);a.download=`MTurk_${new Date().toISOString().slice(0,10)}.csv`;
+    document.body.append(a);a.click();a.remove();
+  };
 }
-</script></body></html>
+</script>
+</body>
+</html>
