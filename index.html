@@ -1,109 +1,190 @@
-<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"/><meta name="viewport" content="width=device-width,initial-scale=1"/><title>📊 MTurk Earnings + Monthly Transfers + Alerts (Secure)</title><style>:root{--p:#2563eb;--p2:#1d4ed8;--bg:#0b1220}*{box-sizing:border-box}body{font-family:Inter,system-ui,Segoe UI,Roboto,Arial,sans-serif;background:var(--bg);margin:0;padding:18px;color:#e5e7eb}header{background:linear-gradient(135deg,#2563eb,#1e3a8a);color:#fff;padding:18px;border-radius:12px;text-align:center}main{margin-top:16px}.controls{display:flex;gap:10px;justify-content:space-between;flex-wrap:wrap;margin-bottom:12px}input[type=text]{padding:8px 10px;border:1px solid #334155;border-radius:8px;width:260px;font-size:14px;background:#0a1222;color:#e5e7eb}button{background:var(--p);border:0;color:#fff;padding:9px 14px;border-radius:8px;cursor:pointer}button:hover{background:var(--p2)}table{width:100%;border-collapse:collapse;background:#0d1528;border-radius:10px;overflow:hidden;box-shadow:0 2px 16px rgba(0,0,0,.25)}th,td{padding:10px 12px;border-bottom:1px solid #1f2937;text-align:left;font-size:14px}th{background:#0f1b34}tr:hover{background:#0e1830}tr.alert-row{background:#3c1020!important;color:#fca5a5;font-weight:600}footer{margin-top:14px;text-align:center;color:#93a4c0;font-size:12px}#gate{position:fixed;inset:0;background:linear-gradient(180deg,#0f172a 0,#111827 100%);display:flex;align-items:center;justify-content:center;z-index:9999}#gate .card{width:min(420px,92vw);background:#0b1220;border:1px solid #1f2937;border-radius:14px;padding:22px;color:#dbeafe;box-shadow:0 10px 40px rgba(0,0,0,.45)}#gate h2{margin:0 0 14px 0;font-weight:700;letter-spacing:.2px}#gate p{margin:0 0 12px 0;color:#93c5fd}#gate input{width:100%;padding:12px 14px;border-radius:10px;border:1px solid #334155;background:#0a1222;color:#e5e7eb;outline:none}#gate input:focus{border-color:#60a5fa;box-shadow:0 0 0 3px rgba(96,165,250,.25)}#gate button{width:100%;margin-top:12px;background:#22c55e}#gate button:hover{background:#16a34a}#gate .msg{margin-top:10px;font-size:12px;color:#fca5a5;min-height:16px}#app{display:none}</style></head><body>
-<section id="gate" aria-label="Password Gate"><div class="card"><h2>🔒 Secure Access</h2><p>Enter password</p><input id="pw" type="password" inputmode="text" autocomplete="current-password" placeholder="•••••••••••••••"/><button id="unlockBtn">Unlock</button><div class="msg" id="gateMsg"></div></div></section>
-<section id="app" aria-label="Dashboard App"><header><h1>📊 MTurk Earnings + Alerts + Monthly Transfers</h1><p>Auto-synced from Firebase — grouped by transfer month</p></header><main><div class="controls"><input id="searchInput" type="text" placeholder="🔍 Filter by worker, bank, or alert..."/><div><button id="refreshBtn">🔄 Refresh</button><button id="exportBtn">📤 Export CSV</button></div></div><table aria-label="Earnings Table"><thead><tr><th>Worker ID</th><th>Current Earnings</th><th>Last Transfer ($)</th><th>Last Transfer Date</th><th>Last Month Transfer ($)</th><th>Next Transfer Date</th><th>Bank</th><th>IP</th><th>Alert</th><th>Updated</th></tr></thead><tbody id="dataBody"><tr><td colspan="10">Loading… (waiting unlock)</td></tr></tbody></table></main><footer>© 2025 AB2Soft | Monthly Summaries • Alert Monitor • CSV Export</footer></section>
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>📊 MTurk Earnings + User Mapping + Alerts</title>
+<script type="module">
+  import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
+  import { getFirestore, collection, getDocs, orderBy, query } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
 
-<script>
-/* ========= OBFUSCATED LOADER (self-destructs) ========= */
-(function(){
-  "use strict";
-  var D=function(s){return s.replace(/_/g,"/").replace(/-/g,"+")}, 
-      B=function(s){try{return decodeURIComponent(escape(atob(D(s))))}catch(e){return atob(D(s))}}, 
-      H="9b724d9df97a91d297dc1c714a3987338ebb60a2a53311d2e382411a78b9e07d",
-      g=document.getElementById("gate"),
-      a=document.getElementById("app"),
-      p=document.getElementById("pw"),
-      u=document.getElementById("unlockBtn"),
-      m=document.getElementById("gateMsg"),
-      hex=function(b){for(var v=new Uint8Array(b),o="",i=0;i<v.length;i++)o+=v[i].toString(16).padStart(2,"0");return o},
-      sha=async function(t){return hex(await crypto.subtle.digest("SHA-256",new TextEncoder().encode(t)))},
-      kill=function(){
-        try{
-          var s=document.currentScript||document.querySelector("script[data-self]");
-          if(s){s.parentNode.removeChild(s)}
-        }catch(_){}
-      };
+  const firebaseConfig = {
+    apiKey: "AIzaSyCCtBCAJvQCDj8MXb2w90qYUqRrENIIGIQ",
+    authDomain: "mturk-monitordeep.firebaseapp.com",
+    projectId: "mturk-monitordeep",
+    storageBucket: "mturk-monitordeep.firebasestorage.app",
+    messagingSenderId: "58392297487",
+    appId: "1:58392297487:web:1365ad12110ffd0586637a"
+  };
 
-  function runApp(){
-    /* main body, lightly obfuscated */
-    (async function(){
-      const a1=B("aHR0cHM6Ly93d3cuZ3N0YXRpYy5jb20vZmlyZWJhc2Vqcy8xMC4xMi4wL2ZpcmViYXNlLWFwcC5qcw"),
-            a2=B("aHR0cHM6Ly93d3cuZ3N0YXRpYy5jb20vZmlyZWJhc2Vqcy8xMC4xMi4wL2ZpcmViYXNlLWZpcmVzdG9yZS5qcw");
-      const {initializeApp}=await import(a1);
-      const {getFirestore,collection,getDocs,orderBy,query}=await import(a2);
-      /* Firebase config (encoded JSON) */
-      const cfg=JSON.parse(B("eyJhcGlLZXkiOiJBSXphU3lDQ3RCQ0FadlFXQ0RqOG1YZjJiOTBxWVVxUnJFTklJR0lRIiwiYXV0aERvbWFpbiI6Im10dXJrLW1vbml0b3JkZWVwLmZpcmViYXNlYXBwLmNvbSIsInByb2plY3RJZCI6Im10dXJrLW1vbml0b3JkZWVwIiwic3RvcmFnZUJ1Y2tldCI6Im10dXJrLW1vbml0b3JkZWVwLmZpcmViYXNlc3RvcmFnZS5hcHAiLCJtZXNzYWdpbmdTZW5kZXJJZCI6IjU4MzkyMjk3NDg3IiwiYXBwSWQiOiIxOjU4MzkyMjk3NDg3OndlYjoxMzY1YWQxMjExMGZmZDA1ODY2MzdhIn0="));
-      const app=initializeApp(cfg), db=getFirestore(app);
-      const tK=(d)=>{if(!d)return null;const p=(""+d).split("/");if(p.length!==3)return null;const[mm,dd,yy]=p;return `${yy}-${mm}`};
-      const toL=(ts)=>{if(!ts)return"";try{if(typeof ts==="object"&&typeof ts.seconds==="number")return new Date(ts.seconds*1e3).toLocaleString();const d=new Date(ts);if(!isNaN(d))return d.toLocaleString()}catch(e){}return String(ts)};
-      const T=document.getElementById("dataBody");
-      let rows=[];
-      async function load(){
-        T.innerHTML="<tr><td colspan='10'>Loading…</td></tr>"; rows=[];
-        try{
-          const q=query(collection(db,"earnings_logs"),orderBy("timestamp","desc"));
-          const snap=await getDocs(q);
-          const monthSum={};
-          snap.forEach(doc=>{
-            const d=doc.data(),k=tK(d.lastTransferDate);
-            if(k){const amt=parseFloat(d.lastTransferAmount||0);monthSum[k]=(monthSum[k]||0)+(isNaN(amt)?0:amt)}
-          });
-          let html="";
-          snap.forEach(doc=>{
-            const d=doc.data(),k=tK(d.lastTransferDate);
-            const sum=k&&monthSum[k]?monthSum[k].toFixed(2):"0.00";
-            const bad=d.alert&&d.alert!=="OK"&&d.alert!=="✅ OK";
-            const r={
-              WorkerID:d.workerId||"",
-              CurrentEarnings:(d.currentEarnings??""),
-              LastTransfer:(d.lastTransferAmount??""),
-              LastTransferDate:(d.lastTransferDate??""),
-              LastMonthTotal:sum,
-              NextTransferDate:(d.nextTransferDate??""),
-              BankAccount:(d.bankAccount??""),
-              IP:(d.ip??""),
-              Alert:(d.alert||"OK"),
-              Updated:toL(d.timestamp)
-            };
-            rows.push(r);
-            html+=`<tr class="${bad?"alert-row":""}"><td>${r.WorkerID}</td><td>${r.CurrentEarnings}</td><td>${r.LastTransfer}</td><td>${r.LastTransferDate}</td><td>${r.LastMonthTotal}</td><td>${r.NextTransferDate}</td><td>${r.BankAccount}</td><td>${r.IP}</td><td>${r.Alert}</td><td>${r.Updated}</td></tr>`;
-          });
-          T.innerHTML=html||"<tr><td colspan='10'>No records found</td></tr>";
-        }catch(e){
-          console.error(e);
-          T.innerHTML="<tr><td colspan='10'>Error loading data.</td></tr>";
-        }
+  const app = initializeApp(firebaseConfig);
+  const db = getFirestore(app);
+  let tableData = [], userMap = {};
+
+  // 🧩 Fetch mapping from Google Sheet (must be published to web)
+  async function loadUserMapping() {
+    const csvUrl =
+      "https://docs.google.com/spreadsheets/d/e/2PACX-1vTzZQXbxQBTZ2Obh8Q3i_kczKx1__hUfRkDQbaFgRZqjM9dz7oM1xR4gSPEYjbxah7XLt7J4twA9m14/pub?output=csv";
+    try {
+      const res = await fetch(csvUrl);
+      const text = await res.text();
+      const rows = text.split("\n").map(r => r.split(","));
+      for (let i = 1; i < rows.length; i++) {
+        const [worker, user] = rows[i].map(c => c.trim());
+        if (worker && user) userMap[worker] = user;
       }
-      function filt(){
-        const v=(document.getElementById("searchInput").value||"").toLowerCase();
-        document.querySelectorAll("#dataBody tr").forEach(tr=>{
-          tr.style.display = tr.textContent.toLowerCase().includes(v)?"":"none";
-        });
-      }
-      function toCSV(){
-        if(!rows.length){alert("No data to export.");return}
-        const H=Object.keys(rows[0]);
-        const csv=[H.join(","),...rows.map(o=>H.map(h=>`"${String(o[h]??"").replace(/"/g,'""')}"`).join(","))].join("\n");
-        const blob=new Blob([csv],{type:"text/csv;charset=utf-8;"}), a=document.createElement("a");
-        a.href=URL.createObjectURL(blob); a.download=`MTurk_Earnings_${new Date().toISOString().slice(0,10)}.csv`; document.body.appendChild(a); a.click(); a.remove();
-      }
-      document.getElementById("refreshBtn").addEventListener("click",load);
-      document.getElementById("searchInput").addEventListener("input",filt);
-      document.getElementById("exportBtn").addEventListener("click",toCSV);
-      load();
-    })().finally(kill);
+    } catch (err) {
+      console.warn("⚠️ Could not load Google Sheet mapping:", err);
+    }
   }
 
-  u.addEventListener("click",async function(){
-    m.textContent="";
-    const v=(p.value||"").trim();
-    if(!v){m.textContent="Password required";return}
-    try{
-      if(await sha(v)===H){ g.style.display="none"; a.style.display="block"; runApp(); }
-      else { m.textContent="Password incorrect"; }
-    }catch(e){ m.textContent="Crypto error: "+(e&&e.message?e.message:""); }
-  });
-  p.addEventListener("keydown",function(e){ if(e.key==="Enter") u.click(); });
+  // 🧮 Helper: Convert "09/09/25" → "25-09"
+  function getMonthKey(dateStr) {
+    if (!dateStr) return null;
+    const [mm, dd, yy] = dateStr.split("/");
+    return `${yy}-${mm}`;
+  }
 
-})();
+  // 📥 Load Firestore Data + Combine with Sheet mapping
+  async function loadData() {
+    const tableBody = document.getElementById("dataBody");
+    tableBody.innerHTML = "<tr><td colspan='11'>Loading…</td></tr>";
+    tableData = [];
+
+    try {
+      const q = query(collection(db, "earnings_logs"), orderBy("timestamp", "desc"));
+      const snapshot = await getDocs(q);
+
+      // Group totals by month
+      const monthlyTransfers = {};
+      snapshot.forEach(doc => {
+        const d = doc.data();
+        const key = getMonthKey(d.lastTransferDate);
+        if (key) {
+          const amt = parseFloat(d.lastTransferAmount || 0);
+          monthlyTransfers[key] = (monthlyTransfers[key] || 0) + (isNaN(amt) ? 0 : amt);
+        }
+      });
+
+      let html = "";
+      snapshot.forEach(doc => {
+        const d = doc.data();
+        const monthKey = getMonthKey(d.lastTransferDate);
+        const lastMonthTotal = monthKey ? (monthlyTransfers[monthKey] || 0).toFixed(2) : "0.00";
+        const isAlert = d.alert && d.alert !== "OK";
+        const user = userMap[d.workerId] || "—";
+
+        const row = {
+          WorkerID: d.workerId || "",
+          User: user,
+          CurrentEarnings: d.currentEarnings || "",
+          LastTransfer: d.lastTransferAmount || "",
+          LastTransferDate: d.lastTransferDate || "",
+          LastMonthTotal: lastMonthTotal,
+          NextTransferDate: d.nextTransferDate || "",
+          BankAccount: d.bankAccount || "",
+          IP: d.ip || "",
+          Alert: d.alert || "OK",
+          Updated: new Date(d.timestamp?.seconds * 1000 || Date.now()).toLocaleString()
+        };
+        tableData.push(row);
+
+        html += `
+          <tr class="${isAlert ? "alert-row" : ""}">
+            <td>${row.WorkerID}</td>
+            <td>${row.User}</td>
+            <td>${row.IP}</td>
+            <td>${row.CurrentEarnings}</td>
+            <td>${row.LastTransfer}</td>
+            <td>${row.LastTransferDate}</td>
+            <td>${row.LastMonthTotal}</td>
+            <td>${row.NextTransferDate}</td>
+            <td>${row.BankAccount}</td>
+            <td>${row.Alert}</td>
+            <td>${row.Updated}</td>
+          </tr>`;
+      });
+
+      tableBody.innerHTML = html || "<tr><td colspan='11'>No records found</td></tr>";
+    } catch (err) {
+      console.error("Error loading Firebase data:", err);
+      tableBody.innerHTML = "<tr><td colspan='11'>Error loading data.</td></tr>";
+    }
+  }
+
+  // 🔍 Filter table
+  function filterTable() {
+    const filter = document.getElementById("searchInput").value.toLowerCase();
+    document.querySelectorAll("#dataBody tr").forEach(row => {
+      row.style.display = row.textContent.toLowerCase().includes(filter) ? "" : "none";
+    });
+  }
+
+  // 📤 Export to CSV
+  function exportToCSV() {
+    if (!tableData.length) return alert("No data to export.");
+    const headers = Object.keys(tableData[0]);
+    const csv = [headers.join(",")].concat(
+      tableData.map(r => headers.map(h => `"${(r[h] || "").replace(/"/g, '""')}"`).join(","))
+    ).join("\n");
+    const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
+    const link = document.createElement("a");
+    link.href = URL.createObjectURL(blob);
+    link.download = `MTurk_Earnings_${new Date().toISOString().split("T")[0]}.csv`;
+    link.click();
+  }
+
+  // ⚡ Initialize
+  window.addEventListener("DOMContentLoaded", async () => {
+    await loadUserMapping();
+    document.getElementById("refreshBtn").addEventListener("click", loadData);
+    document.getElementById("searchInput").addEventListener("keyup", filterTable);
+    document.getElementById("exportBtn").addEventListener("click", exportToCSV);
+    loadData();
+  });
 </script>
-</body></html>
+
+<style>
+body{font-family:Inter,Roboto,Arial,sans-serif;background:#f8fafc;margin:0;padding:20px;color:#111}
+header{text-align:center;background:linear-gradient(135deg,#2563eb,#1e3a8a);color:white;padding:20px;border-radius:10px}
+.controls{display:flex;justify-content:space-between;margin-bottom:15px;flex-wrap:wrap}
+input[type=text]{padding:8px 10px;border:1px solid #ddd;border-radius:6px;width:260px;font-size:14px}
+button{background:#2563eb;border:none;color:white;padding:8px 14px;border-radius:6px;cursor:pointer;margin-left:8px}
+button:hover{background:#1d4ed8}
+table{width:100%;border-collapse:collapse;background:white;border-radius:8px;overflow:hidden;box-shadow:0 0 6px rgba(0,0,0,.05)}
+th,td{padding:10px;border-bottom:1px solid #eee;text-align:left;font-size:14px}
+th{background:#f1f5f9}
+tr.alert-row{background:#fee2e2;color:#b91c1c;font-weight:600}
+tr:hover{background:#f9fafb}
+footer{text-align:center;margin-top:15px;font-size:12px;color:#666}
+</style>
+</head>
+
+<body>
+<header>
+  <h1>📊 MTurk Earnings + User Mapping + Alerts</h1>
+  <p>Auto-synced from Firebase — User linked from Google Sheet</p>
+</header>
+
+<div class="controls">
+  <input id="searchInput" type="text" placeholder="🔍 Filter by worker, user, bank, or alert…">
+  <div>
+    <button id="refreshBtn">🔄 Refresh</button>
+    <button id="exportBtn">📤 Export CSV</button>
+  </div>
+</div>
+
+<table>
+  <thead>
+    <tr>
+      <th>Worker ID</th><th>User</th><th>IP</th><th>Current Earnings</th>
+      <th>Last Transfer ($)</th><th>Last Transfer Date</th><th>Last Month Transfer ($)</th>
+      <th>Next Transfer Date</th><th>Bank</th><th>Alert</th><th>Updated</th>
+    </tr>
+  </thead>
+  <tbody id="dataBody"><tr><td colspan="11">Loading…</td></tr></tbody>
+</table>
+
+<footer>© 2025 AB2Soft | Firebase + Google Sheet User Mapping + CSV Export</footer>
+</body>
+</html>
