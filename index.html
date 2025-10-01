@@ -67,26 +67,25 @@ footer{margin-top:14px;text-align:center;color:#6b7280;font-size:12px}
     <tbody id="dataBody"><tr><td colspan="11">Waiting for unlock...</td></tr></tbody>
   </table>
 
-  <footer>© 2025 AB2Soft • Realtime MTurk Earnings Monitor</footer>
+  <footer>© 2025 MTurk Earnings Monitor</footer>
 </section>
 
 <script type="module">
-/* ========= tiny helpers / obfuscation ========= */
+
 const _b64d = s => atob(s);
 const _u8   = s => new TextEncoder().encode(s);
 const _hex  = a => Array.from(new Uint8Array(a)).map(b=>b.toString(16).padStart(2,'0')).join('');
 const _sha256 = async s => _hex(await crypto.subtle.digest("SHA-256", _u8(s)));
 
-/* ========= password (hash of AB2EARNINGS2025) =========
+
    stored as Base64 of the hex digest to avoid plaintext */
 const PASS_HASH = _b64d("OWI3MjRkOWRmOTdhOTFkMjk3ZGMxYzcxNGEzOTg3MzM4ZWJiNjBhMmE1MzMxMWQyZTM4MjQxMWE3OGI5ZTA3ZA==");
 
-/* ========= Firebase imports and config =========
-   (config is not sensitive; kept unobfuscated for stability) */
+
 const FIREBASE_APP_URL = _b64d("aHR0cHM6Ly93d3cuZ3N0YXRpYy5jb20vZmlyZWJhc2Vqcy8xMC4xMi4wL2ZpcmViYXNlLWFwcC5qcw==");
 const FIRESTORE_URL    = _b64d("aHR0cHM6Ly93d3cuZ3N0YXRpYy5jb20vZmlyZWJhc2Vqcy8xMC4xMi4wL2ZpcmViYXNlLWZpcmVzdG9yZS5qcw==");
 
-/* === Your known-good config (matches userscript v5.4) === */
+
 const FIREBASE_CFG = {
   apiKey: "AIzaSyCCtBCAJvQCDj8MXb2w90qYUqRrENIIGIQ",
   authDomain: "mturk-monitordeep.firebaseapp.com",
@@ -96,7 +95,7 @@ const FIREBASE_CFG = {
   appId: "1:58392297487:web:1365ad12110ffd0586637a"
 };
 
-/* ========= Gate ========= */
+
 document.getElementById("unlockBtn").onclick = async () => {
   const v = document.getElementById("pw").value.trim();
   const msg = document.getElementById("gateMsg");
@@ -111,7 +110,7 @@ document.getElementById("unlockBtn").onclick = async () => {
   }
 };
 
-/* ========= App ========= */
+
 async function boot(){
   const { initializeApp } = await import(FIREBASE_APP_URL);
   const { getFirestore, collection, onSnapshot, orderBy, query } = await import(FIRESTORE_URL);
@@ -149,7 +148,7 @@ async function boot(){
     }
   );
 
-  /* Filter */
+ 
   document.getElementById("searchInput").oninput = () => {
     const v = document.getElementById("searchInput").value.toLowerCase();
     document.querySelectorAll("#dataBody tr").forEach(r=>{
@@ -157,7 +156,7 @@ async function boot(){
     });
   };
 
-  /* Export */
+ 
   document.getElementById("exportBtn").onclick = () => {
     if (!tableData.length) { alert("No data"); return; }
     const cols = ["workerId","user","currentEarnings","lastMonthEarnings","lastTransferAmount","lastTransferDate","nextTransferDate","bankAccount","ip","alert"];
