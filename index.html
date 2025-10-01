@@ -64,7 +64,7 @@ footer{margin-top:14px;text-align:center;color:#6b7280;font-size:12px}
 </section>
 
 <script type="module">
-const PASS_HASH="9b724d9df97a91d297dc1c714a3987338ebb60a2a53311d2e382411a78b9e07d"; // SHA256(AB2EARNINGS2025)
+const PASS_HASH="9b724d9df97a91d297dc1c714a3987338ebb60a2a53311d2e382411a78b9e07d"; 
 async function sha256(s){const buf=await crypto.subtle.digest("SHA-256",new TextEncoder().encode(s));return Array.from(new Uint8Array(buf)).map(b=>b.toString(16).padStart(2,"0")).join("")}
 document.getElementById("unlockBtn").onclick=async()=>{
   const v=document.getElementById("pw").value.trim(),m=document.getElementById("gateMsg");
