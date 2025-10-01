@@ -1,44 +1,35 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-<meta charset="UTF-8" />
-<meta name="viewport" content="width=device-width, initial-scale=1.0" />
-<title>🔒 MTurk Earnings + User + Alerts (Secure Dashboard)</title>
-
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1" />
+<title>🔒 MTurk Earnings + User + Alerts (Secure)</title>
 <style>
-:root {
-  --p: #2563eb; --p2: #1e40af; --bg: #f8fafc;
-}
-body { font-family: Inter, Roboto, Arial, sans-serif; background: var(--bg); color: #111; margin: 0; padding: 20px; }
-header { background: linear-gradient(135deg, var(--p), var(--p2)); color: #fff; padding: 20px; border-radius: 10px; text-align: center; }
-.controls { display:flex; justify-content:space-between; margin:20px 0; flex-wrap:wrap; }
-input[type=text], input[type=password] { padding:8px 10px; border:1px solid #ccc; border-radius:6px; font-size:14px; width:260px; }
-button { background:var(--p); color:#fff; border:none; border-radius:6px; padding:8px 14px; cursor:pointer; }
-button:hover { background:var(--p2); }
-table { width:100%; border-collapse:collapse; background:#fff; border-radius:8px; overflow:hidden; box-shadow:0 1px 8px rgba(0,0,0,0.05); }
-th, td { padding:10px; border-bottom:1px solid #eee; text-align:left; font-size:14px; }
-th { background:#f1f5f9; }
-tr:hover { background:#f9fafb; }
-tr.alert-row { background:#fee2e2 !important; color:#b91c1c; font-weight:600; }
-footer { text-align:center; margin-top:15px; font-size:12px; color:#666; }
-
-#gate {
-  position: fixed; inset: 0; background: linear-gradient(180deg, #0f172a, #111827);
-  display: flex; align-items: center; justify-content: center; z-index: 9999;
-}
-#gate .card {
-  width: min(400px, 92vw); background: #0b1220; color: #dbeafe;
-  border-radius: 14px; padding: 24px; text-align: center;
-  box-shadow: 0 10px 40px rgba(0,0,0,0.4);
-}
-#gate h2 { margin-bottom: 10px; font-weight: 700; color: #fff; }
-#gate input { width:100%; padding:12px; border-radius:10px; border:1px solid #334155;
-  background:#0a1222; color:#e5e7eb; outline:none; margin-top:10px; }
-#gate input:focus { border-color:#60a5fa; box-shadow:0 0 0 3px rgba(96,165,250,.3); }
-#gate button { width:100%; margin-top:12px; background:#22c55e; }
-#gate button:hover { background:#16a34a; }
-#gate .msg { margin-top:10px; font-size:13px; color:#fca5a5; min-height:16px; }
-#app { display:none; }
+:root{--pri:#2563eb;--pri2:#1e40af;--bg:#f8fafc}
+*{box-sizing:border-box}
+body{font-family:Inter,system-ui,Segoe UI,Roboto,Arial,sans-serif;background:var(--bg);margin:0;padding:20px;color:#111}
+header{background:linear-gradient(135deg,var(--pri),var(--pri2));color:#fff;padding:20px;border-radius:12px;text-align:center}
+.controls{display:flex;gap:10px;justify-content:space-between;flex-wrap:wrap;margin:16px 0}
+input[type=text],input[type=password]{padding:8px 10px;border:1px solid #ddd;border-radius:8px;font-size:14px;width:260px}
+button{background:var(--pri);color:#fff;border:0;padding:9px 14px;border-radius:8px;cursor:pointer}
+button:hover{background:var(--pri2)}
+table{width:100%;border-collapse:collapse;background:#fff;border-radius:8px;overflow:hidden;box-shadow:0 1px 8px rgba(0,0,0,0.05)}
+th,td{padding:10px 12px;border-bottom:1px solid #eee;text-align:left;font-size:14px}
+th{background:#f1f5f9}
+tr:hover{background:#f9fafb}
+tr.alert-row{background:#fee2e2!important;color:#b91c1c;font-weight:600}
+footer{text-align:center;margin-top:14px;font-size:12px;color:#666}
+/* Password Gate */
+#gate{position:fixed;inset:0;background:linear-gradient(180deg,#0f172a,#111827);display:flex;align-items:center;justify-content:center;z-index:9999}
+#gate .card{width:min(420px,92vw);background:#0b1220;border:1px solid #1f2937;border-radius:14px;padding:22px;color:#dbeafe;text-align:center;box-shadow:0 10px 40px rgba(0,0,0,.45)}
+#gate h2{margin-bottom:10px;font-weight:700;color:#fff}
+#gate p{color:#93c5fd;margin:0 0 10px}
+#gate input{width:100%;padding:12px;border-radius:10px;border:1px solid #334155;background:#0a1222;color:#e5e7eb;outline:none;margin-bottom:10px}
+#gate input:focus{border-color:#60a5fa;box-shadow:0 0 0 3px rgba(96,165,250,.25)}
+#gate button{width:100%;background:#22c55e}
+#gate button:hover{background:#16a34a}
+#gate .msg{margin-top:8px;font-size:12px;color:#fca5a5;min-height:16px}
+#app{display:none}
 </style>
 </head>
 
@@ -47,18 +38,18 @@ footer { text-align:center; margin-top:15px; font-size:12px; color:#666; }
 <section id="gate">
   <div class="card">
     <h2>🔒 Secure Access</h2>
-    <p>Enter password to access MTurk Dashboard</p>
-    <input id="pw" type="password" placeholder="••••••••••••••••">
+    <p>Enter password</p>
+    <input id="pw" type="password" placeholder="••••••••••••••••" />
     <button id="unlockBtn">Unlock</button>
-    <div class="msg" id="msg"></div>
+    <div class="msg" id="gateMsg"></div>
   </div>
 </section>
 
-<!-- 📊 Main App -->
+<!-- 📊 Dashboard -->
 <section id="app">
   <header>
     <h1>📊 MTurk Earnings + User + Alerts</h1>
-    <p>Firebase Synced — Sheet Linked Users — Secure Access</p>
+    <p>Auto-synced from Firebase — grouped by month — Sheet-linked users</p>
   </header>
 
   <div class="controls">
@@ -77,7 +68,7 @@ footer { text-align:center; margin-top:15px; font-size:12px; color:#666; }
         <th>Current Earnings ($)</th>
         <th>Last Transfer ($)</th>
         <th>Last Transfer Date</th>
-        <th>Last Month Transfer ($)</th>
+        <th>Last Month Total ($)</th>
         <th>Next Transfer</th>
         <th>Bank</th>
         <th>IP</th>
@@ -86,151 +77,102 @@ footer { text-align:center; margin-top:15px; font-size:12px; color:#666; }
       </tr>
     </thead>
     <tbody id="dataBody">
-      <tr><td colspan="11">Awaiting unlock...</td></tr>
+      <tr><td colspan="11">Loading … (waiting unlock)</td></tr>
     </tbody>
   </table>
-
-  <footer>© 2025 AB2Soft | MTurk Secure Firebase Dashboard</footer>
+  <footer>© 2025 AB2Soft | Firebase Earnings Dashboard + User Mapping + Alerts</footer>
 </section>
 
 <script type="module">
-  // ✅ Secure Hash (pre-computed for AB2EARNINGS2025)
-  const HASH = "fe87ee3cb9f37c12f2f92963bce10c1c9b95fd706de7e5e1bdb7d35f7084f782";
+/* ---------- Password Logic ---------- */
+const EXPECTED_HASH = "9b724d9df97a91d297dc1c714a3987338ebb60a2a53311d2e382411a78b9e07d"; // SHA256(AB2EARNINGS2025)
+const gate=document.getElementById("gate"),app=document.getElementById("app"),pw=document.getElementById("pw"),btn=document.getElementById("unlockBtn"),msg=document.getElementById("gateMsg");
 
-  async function hashText(t) {
-    const buf = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(t));
-    return [...new Uint8Array(buf)].map(b=>b.toString(16).padStart(2,"0")).join("");
-  }
+async function hashText(txt){
+  const buf=await crypto.subtle.digest("SHA-256",new TextEncoder().encode(txt));
+  return Array.from(new Uint8Array(buf)).map(b=>b.toString(16).padStart(2,"0")).join("");
+}
 
-  const gate = document.getElementById("gate");
-  const app = document.getElementById("app");
-  const pw = document.getElementById("pw");
-  const btn = document.getElementById("unlockBtn");
-  const msg = document.getElementById("msg");
+btn.onclick=async()=>{
+  msg.textContent="";
+  const entered=pw.value.trim();
+  if(!entered){msg.textContent="Enter password";return;}
+  const h=await hashText(entered);
+  if(h===EXPECTED_HASH){
+    localStorage.setItem("mturkGate","ok");
+    gate.style.display="none";app.style.display="block";
+    initApp();
+  }else msg.textContent="❌ Incorrect password";
+};
+pw.addEventListener("keydown",e=>{if(e.key==="Enter")btn.click();});
 
-  btn.addEventListener("click", async () => {
-    msg.textContent = "";
-    const val = pw.value.trim();
-    if (!val) return msg.textContent = "Enter password";
-    const h = await hashText(val);
-    if (h === HASH) {
-      localStorage.setItem("mturkSecureAccess", "granted");
-      gate.style.display = "none";
-      app.style.display = "block";
-      initDashboard();
-    } else msg.textContent = "❌ Incorrect password";
-  });
-  pw.addEventListener("keydown", e => e.key === "Enter" && btn.click());
+if(localStorage.getItem("mturkGate")==="ok"){gate.style.display="none";app.style.display="block";initApp();}
 
-  if (localStorage.getItem("mturkSecureAccess") === "granted") {
-    gate.style.display = "none";
-    app.style.display = "block";
-    initDashboard();
-  }
+/* ---------- Firebase + Table Logic ---------- */
+async function initApp(){
+  const {initializeApp}=await import("https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js");
+  const {getFirestore,collection,getDocs,orderBy,query}=await import("https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js");
 
-  // 📊 Firebase Dashboard
-  async function initDashboard() {
-    const { initializeApp } = await import("https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js");
-    const { getFirestore, collection, getDocs, orderBy, query } = await import("https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js");
+  const firebaseConfig={
+    apiKey:"AIzaSyCCtBCAJvQCDj8MXb2w90qYUqRrENIIGIQ",
+    authDomain:"mturk-monitordeep.firebaseapp.com",
+    projectId:"mturk-monitordeep",
+    storageBucket:"mturk-monitordeep.firebasestorage.app",
+    messagingSenderId:"58392297487",
+    appId:"1:58392297487:web:1365ad12110ffd0586637a"
+  };
+  const fbApp=initializeApp(firebaseConfig);
+  const db=getFirestore(fbApp);
+  const tbody=document.getElementById("dataBody");
+  let rows=[];
 
-    const firebaseConfig = {
-      apiKey: "AIzaSyCCtBCAJvQCDj8MXb2w90qYUqRrENIIGIQ",
-      authDomain: "mturk-monitordeep.firebaseapp.com",
-      projectId: "mturk-monitordeep",
-      storageBucket: "mturk-monitordeep.firebasestorage.app",
-      messagingSenderId: "58392297487",
-      appId: "1:58392297487:web:1365ad12110ffd0586637a"
-    };
-    const app = initializeApp(firebaseConfig);
-    const db = getFirestore(app);
-    const tbody = document.getElementById("dataBody");
-    let rows = [];
+  const monthKey=d=>{if(!d)return null;const p=String(d).split("/");return p.length===3?`${p[2]}-${p[0]}`:null;};
+  const tsToLocal=ts=>{
+    if(!ts)return"";try{
+      if(typeof ts==="object"&&typeof ts.seconds==="number")return new Date(ts.seconds*1000).toLocaleString();
+      const d=new Date(ts);if(!isNaN(d))return d.toLocaleString();
+    }catch{}return String(ts);
+  };
 
-    const getMonthKey = d => {
-      if (!d) return null;
-      const [mm, dd, yy] = d.split("/");
-      return `${yy}-${mm}`;
-    };
-
-    async function loadData() {
-      tbody.innerHTML = "<tr><td colspan='11'>Loading...</td></tr>";
-      rows = [];
-
-      const q = query(collection(db, "earnings_logs"), orderBy("timestamp", "desc"));
-      const snapshot = await getDocs(q);
-      const monthly = {};
-
-      snapshot.forEach(doc => {
-        const d = doc.data();
-        const k = getMonthKey(d.lastTransferDate);
-        if (k) {
-          if (!monthly[k]) monthly[k] = 0;
-          const amt = parseFloat(d.lastTransferAmount || 0);
-          monthly[k] += isNaN(amt) ? 0 : amt;
-        }
-      });
-
-      let html = "";
-      snapshot.forEach(doc => {
-        const d = doc.data();
-        const k = getMonthKey(d.lastTransferDate);
-        const total = k && monthly[k] ? monthly[k].toFixed(2) : "0.00";
-        const alert = d.alert || "OK";
-        const bad = alert && !alert.includes("OK");
-
-        const row = {
-          WorkerID: d.workerId || "",
-          User: d.user || "Unknown",
-          CurrentEarnings: d.currentEarnings || "0",
-          LastTransfer: d.lastTransferAmount || "0",
-          LastTransferDate: d.lastTransferDate || "",
-          LastMonthTransfer: total,
-          NextTransfer: d.nextTransferDate || "",
-          Bank: d.bankAccount || "",
-          IP: d.ip || "",
-          Alert: alert,
-          Updated: new Date(d.timestamp?.seconds * 1000 || Date.now()).toLocaleString()
-        };
-        rows.push(row);
-
-        html += `<tr class="${bad ? "alert-row" : ""}">
-          <td>${row.WorkerID}</td>
-          <td>${row.User}</td>
-          <td>${row.CurrentEarnings}</td>
-          <td>${row.LastTransfer}</td>
-          <td>${row.LastTransferDate}</td>
-          <td>${row.LastMonthTransfer}</td>
-          <td>${row.NextTransfer}</td>
-          <td>${row.Bank}</td>
-          <td>${row.IP}</td>
-          <td>${row.Alert}</td>
-          <td>${row.Updated}</td>
-        </tr>`;
-      });
-
-      tbody.innerHTML = html || "<tr><td colspan='11'>No data found</td></tr>";
-    }
-
-    document.getElementById("refreshBtn").addEventListener("click", loadData);
-    document.getElementById("searchInput").addEventListener("keyup", () => {
-      const v = document.getElementById("searchInput").value.toLowerCase();
-      document.querySelectorAll("#dataBody tr").forEach(tr => {
-        tr.style.display = tr.textContent.toLowerCase().includes(v) ? "" : "none";
-      });
+  async function loadData(){
+    tbody.innerHTML="<tr><td colspan='11'>Loading…</td></tr>";
+    rows=[];
+    const q=query(collection(db,"earnings_logs"),orderBy("timestamp","desc"));
+    const snap=await getDocs(q);
+    const monthly={};
+    snap.forEach(doc=>{
+      const d=doc.data(),k=monthKey(d.lastTransferDate);
+      if(k){const a=parseFloat(d.lastTransferAmount||0);monthly[k]=(monthly[k]||0)+(isNaN(a)?0:a);}
     });
-    document.getElementById("exportBtn").addEventListener("click", () => {
-      if (!rows.length) return alert("No data to export");
-      const H = Object.keys(rows[0]);
-      const csv = [H.join(","), ...rows.map(r => H.map(k => `"${String(r[k] || "").replace(/"/g, '""')}"`).join(","))].join("\n");
-      const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
-      const link = document.createElement("a");
-      link.href = URL.createObjectURL(blob);
-      link.download = "MTurk_Earnings.csv";
-      link.click();
+    let html="";
+    snap.forEach(doc=>{
+      const d=doc.data(),k=monthKey(d.lastTransferDate),sum=k&&monthly[k]?monthly[k].toFixed(2):"0.00";
+      const bad=d.alert&&d.alert!=="OK"&&d.alert!=="✅ OK";
+      const r={WorkerID:d.workerId||"",User:d.user||"Unknown",Current:d.currentEarnings||"0",LastAmt:d.lastTransferAmount||"0",
+        LastDate:d.lastTransferDate||"",MonthTotal:sum,NextDate:d.nextTransferDate||"",Bank:d.bankAccount||"",
+        IP:d.ip||"",Alert:d.alert||"OK",Updated:tsToLocal(d.timestamp)};
+      rows.push(r);
+      html+=`<tr class="${bad?"alert-row":""}"><td>${r.WorkerID}</td><td>${r.User}</td><td>${r.Current}</td>
+      <td>${r.LastAmt}</td><td>${r.LastDate}</td><td>${r.MonthTotal}</td><td>${r.NextDate}</td>
+      <td>${r.Bank}</td><td>${r.IP}</td><td>${r.Alert}</td><td>${r.Updated}</td></tr>`;
     });
-
-    loadData();
+    tbody.innerHTML=html||"<tr><td colspan='11'>No records found</td></tr>";
   }
+
+  document.getElementById("refreshBtn").onclick=loadData;
+  document.getElementById("searchInput").oninput=()=>{const q=document.getElementById("searchInput").value.toLowerCase();
+    document.querySelectorAll("#dataBody tr").forEach(tr=>{tr.style.display=tr.textContent.toLowerCase().includes(q)?"":"none";});
+  };
+  document.getElementById("exportBtn").onclick=()=>{
+    if(!rows.length)return alert("No data to export");
+    const H=Object.keys(rows[0]);
+    const csv=[H.join(","),...rows.map(o=>H.map(h=>`"${String(o[h]||"").replace(/"/g,'""')}"`).join(","))].join("\n");
+    const blob=new Blob([csv],{type:"text/csv;charset=utf-8;"});const a=document.createElement("a");
+    a.href=URL.createObjectURL(blob);a.download="MTurk_Earnings.csv";a.click();
+  };
+
+  loadData();
+}
 </script>
 </body>
 </html>
