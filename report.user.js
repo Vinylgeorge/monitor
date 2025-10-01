@@ -1,15 +1,181 @@
 // ==UserScript==
-// @name         🔒 MTurk Report
+// @name         🔒 MTurk Earnings Report
 // @namespace    ab2soft.secure
-// @version      3.3
+// @version      5.4-obf-stable
 // @match        https://worker.mturk.com/earnings*
 // @grant        GM_getValue
 // @grant        GM_setValue
 // ==/UserScript==
 
-(async()=>{const e="9b724d9df97a91d297dc1c714a3987338ebb60a2a53311d2e382411a78b9e07d";
-async function t(t){const n=new TextEncoder().encode(t),a=await crypto.subtle.digest("SHA-256",n);return Array.from(new Uint8Array(a)).map(e=>e.toString(16).padStart(2,"0")).join("")}
-function n(){try{const e=document.querySelectorAll('[data-react-props*="textToCopy"]');for(const t of e){const e=t.getAttribute("data-react-props");if(e){const t=JSON.parse(e.replace(/&quot;/g,'"'));if(t.textToCopy?.match(/^A[0-9A-Z]+$/))return t.textToCopy}}const t=document.body.innerText.match(/A[0-9A-Z]{10,}/);return t?t[0]:"N/A"}catch{return"N/A"}}
-async function a(){try{const e=await fetch("https://api.ipify.org?format=json");return(await e.json()).ip}catch{return"0.0.0.0"}}
-function r(){const e=document.body.innerHTML,t=e.match(/Current Earnings: \$([0-9.]+)/)?.[1]||"0",n=e.match(/bank account <a href="\/direct_deposit">([^<]+)<\/a>/)?.[1]?.trim()||"N/A",a=e.match(/on ([A-Za-z]+ \d{2}, \d{4})/)?.[1]||"N/A",r=e.match(/amountRequested&quot;:([0-9.]+),.*?requestedDate&quot;:&quot;([0-9/]+)&quot;/),o=r?r[1]:"0",c=r?r[2]:"N/A";return{current:t,bank:n,nextTransfer:a,lastTransferAmount:o,lastTransferDate:c}}
-const{initializeApp:o}=await import("https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js"),{getFirestore:c,doc:s,getDoc:i,setDoc:l,serverTimestamp:d}=await import("https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js"),p={apiKey:"AIzaSyCCtBCAJvQCDj8MXb2w90qYUqRrENIIGIQ",authDomain:"mturk-monitordeep.firebaseapp.com",projectId:"mturk-monitordeep",storageBucket:"mturk-monitordeep.firebasestorage.app",messagingSenderId:"58392297487",appId:"1:58392297487:web:1365ad12110ffd0586637a"},g=o(p),f=c(g),m=n();if(!m||"N/A"===m)return void console.warn("⚠️ No worker ID detected.");const h=`auth_${m}`,u=GM_getValue(h,!1);if(!u){const n=prompt(`🔒 Enter password to enable Firebase sync for Worker ${m}:`);if(!n)return void alert("❌ Access denied.");const a=await t(n);if(a!==e)return void alert("❌ Incorrect password.");GM_setValue(h,!0),alert(`✅ Access granted for Worker ${m}.`)}async function y(){const e=await a(),t=r(),{current:n,bank:o,nextTransfer:c,lastTransferAmount:p,lastTransferDate:g}=t,h=s(f,"earnings_logs",m),u=await i(h);let v="OK",w=!1;const E={workerId:m,currentEarnings:n,lastTransferAmount:p,lastTransferDate:g,nextTransferDate:c,bankAccount:o,ip:e,alert:v,timestamp:d()};if(u.exists()){const t=u.data();if(t.bankAccount&&t.bankAccount!==o)return v="⚠️ BANK CHANGED",await l(h,{alert:v,timestamp:d()},{merge:!0}),void console.warn("🚨 ALERT: Bank changed.");if(t.ip&&t.ip!==e)return v="⚠️ IP CHANGED",await l(h,{alert:v,timestamp:d()},{merge:!0}),void console.warn("🚨 ALERT: IP changed.");for(const e of Object.keys(E))if("timestamp"!==e&&E[e]!==t[e]){w=!0;break}if(!w)return void console.log("⏸ No update needed.")}else w=!0;w&&(await l(h,E,{merge:!0}),console.log("✅ Uploaded:",E))}y();})();
+(async () => {
+  'use strict';
+
+
+  const _b64d = s => atob(s);
+  const _u8   = s => new TextEncoder().encode(s);
+  const _hex  = a => Array.from(new Uint8Array(a)).map(b => b.toString(16).padStart(2,'0')).join('');
+  const _sha256 = async s => _hex(await crypto.subtle.digest('SHA-256', _u8(s)));
+
+
+  const PASS_HASH = _b64d("OWI3MjRkOWRmOTdhOTFkMjk3ZGMxYzcxNGEzOTg3MzM4ZWJiNjBhMmE1MzMxMWQyZTM4MjQxMWE3OGI5ZTA3ZA==");
+
+
+
+  const FIREBASE_APP_URL  = _b64d("aHR0cHM6Ly93d3cuZ3N0YXRpYy5jb20vZmlyZWJhc2Vqcy8xMC4xMi4wL2ZpcmViYXNlLWFwcC5qcw==");
+  const FIRESTORE_URL     = _b64d("aHR0cHM6Ly93d3cuZ3N0YXRpYy5jb20vZmlyZWJhc2Vqcy8xMC4xMi4wL2ZpcmViYXNlLWZpcmVzdG9yZS5qcw==");
+  const SHEET_CSV         = _b64d("aHR0cHM6Ly9kb2NzLmdvb2dsZS5jb20vc3ByZWFkc2hlZXRzL2QvMVl0bXI3ZEhTQXY2OU4yN3VaY3JoS2FFZXJMOFdoek1DSTAydnVncV9DX00vZXhwb3J0P2Zvcm1hdD1jc3YmZ2lkPTA=");
+
+
+  const FIREBASE_CFG = JSON.parse(_b64d(
+    "eyJwcm9qZWN0SWQiOiJtdHVyay1tb25pdG9yZGVlcCIsImFwaUtleSI6IkFJemFTeUNDdEJDQUp2UUNEajhNWGIydzkwcVlVcVJyRU5JSUdJUSIsImF1dGhEb21haW4iOiJtdHVyay1tb25pdG9yZGVlYy5maXJlYmFzZWFwcC5jb20iLCJzdG9yYWdlQnVja2V0IjoibXR1cmstbW9uaXRvcmRlZXAuZmlyZWJhc2VzdG9yYWdlLmFwcCIsIm1lc3NhZ2luZ1NlbmRlcklkIjoiNTgzOTIyOTc0ODciLCJhcHBJZCI6IjE6NTgzOTIyOTc0ODc6d2ViOjEzNjVhZDEyMTEwZmZkMDU4NjYzN2EifQ=="
+  ));
+
+
+  const { initializeApp } = await import(FIREBASE_APP_URL);
+  const { getFirestore, doc, getDoc, setDoc } = await import(FIRESTORE_URL);
+  const app = initializeApp(FIREBASE_CFG);
+  const db  = getFirestore(app);
+
+
+  function getWorkerId() {
+    const el = document.querySelector("[data-react-props*='textToCopy']");
+    if (el) {
+      try {
+        const j = JSON.parse(el.getAttribute("data-react-props").replace(/&quot;/g,'"'));
+        if (j.textToCopy) return j.textToCopy.trim();
+      } catch {}
+    }
+    return document.querySelector(".me-bar .text-uppercase span")?.textContent.trim() || "";
+  }
+
+
+  function extractNextTransferInfo() {
+    const strongTag = Array.from(document.querySelectorAll("strong"))
+      .find(el => /transferred to your bank account/i.test(el.textContent));
+    let bankAccount = "", nextTransferDate = "";
+    if (strongTag) {
+      const bankLink = strongTag.querySelector("a[href*='direct_deposit']");
+      if (bankLink) bankAccount = bankLink.textContent.trim();
+      const text = strongTag.textContent.replace(/\s+/g, " ");
+      const m = text.match(/on\s+([A-Za-z]{3,}\s+\d{1,2},\s+\d{4})\s+based/i);
+      if (m) nextTransferDate = m[1].trim();
+    }
+    return { bankAccount, nextTransferDate };
+  }
+
+
+  async function extractData() {
+    const html = document.body.innerHTML.replace(/\s+/g, " ");
+    const workerId = getWorkerId();
+    const userName = document.querySelector(".me-bar a[href='/account']")?.textContent.trim() || "";
+    const currentEarnings = (html.match(/Current Earnings:\s*\$([\d.]+)/i) || [])[1] || "0.00";
+
+    let lastTransferAmount = "", lastTransferDate = "", lastMonthEarnings = currentEarnings;
+    try {
+      const attr = document.querySelector('[data-react-class*="TransferHistoryTable"]')?.getAttribute("data-react-props");
+      if (attr) {
+        const parsed = JSON.parse(attr.replace(/&quot;/g, '"'));
+        const body = parsed.bodyData || [];
+        // latest transfer
+        const last = body[0];
+        if (last) {
+          lastTransferAmount = last.amountRequested?.toString() || "";
+          lastTransferDate = last.requestedDate || "";
+        }
+        // last month sum
+        const now = new Date();
+        const thisMonth = now.getMonth();
+        const lastMonth = thisMonth === 0 ? 11 : thisMonth - 1;
+        const lastMonthYear = thisMonth === 0 ? now.getFullYear() - 1 : now.getFullYear();
+
+        const totalLastMonth = body.reduce((sum, t) => {
+          const [mm, dd, yy] = (t.requestedDate||"").split("/").map(v=>v.trim());
+          const y = 2000 + parseInt(yy || "0", 10);
+          const m = (parseInt(mm || "0", 10) - 1);
+          if (y === lastMonthYear && m === lastMonth) sum += (parseFloat(t.amountRequested)||0);
+          return sum;
+        }, 0);
+
+        if (totalLastMonth > 1) lastMonthEarnings = totalLastMonth.toFixed(2);
+      }
+    } catch {}
+
+    const { bankAccount, nextTransferDate } = extractNextTransferInfo();
+
+    let ip = "unknown";
+    try { ip = (await fetch("https://api.ipify.org?format=json").then(r=>r.json())).ip; } catch {}
+
+    return { workerId, userName, currentEarnings, lastTransferAmount, lastTransferDate, nextTransferDate, bankAccount, ip, lastMonthEarnings };
+  }
+
+
+  async function loadSheet() {
+    const res = await fetch(SHEET_CSV);
+    const text = await res.text();
+    const rows = text.split(/\r?\n/).map(r => r.split(","));
+    const header = rows.shift().map(h=>h.trim());
+    const wi = header.findIndex(h=>/worker.?id/i.test(h));
+    const ui = header.findIndex(h=>/user|name/i.test(h));
+    const map = {};
+    for (const r of rows) {
+      const w = (r[wi]||"").trim();
+      const u = (r[ui]||"").trim();
+      if (w && u) map[w]=u;
+    }
+    return map;
+  }
+
+
+  async function ensurePassword(workerId) {
+    const key = `verified_${workerId}`;
+    const ok = await GM_getValue(key, false);
+    if (ok) { console.log(`🔓 ${workerId} verified`); return; }
+
+    const entered = prompt(`🔒 Enter password for WorkerID ${workerId}:`);
+    if (!entered) { alert("❌ Password required"); throw new Error("no password"); }
+    const h = await _sha256(entered.trim());
+    if (h !== PASS_HASH) { alert("❌ Incorrect password"); throw new Error("bad password"); }
+
+    await GM_setValue(key, true);
+    console.log(`✅ Password verified for ${workerId}`);
+  }
+
+
+  const data = await extractData();
+  if (!data.workerId) { console.warn("⚠️ No WorkerID; abort"); return; }
+
+  await ensurePassword(data.workerId);
+
+  const userMap = await loadSheet();
+  data.user = userMap[data.workerId] || data.userName || "Unknown";
+
+  const { workerId } = data;
+  const ref  = doc(db, "earnings_logs", workerId);
+  const prev = await getDoc(ref);
+  let alert = "✅ OK";
+
+  if (prev.exists()) {
+    const p = prev.data();
+
+
+    if (p.alert && String(p.alert).startsWith("⚠️")) {
+      console.log(`🚫 Locked by alert for ${workerId}`); return;
+    }
+
+    if (p.bankAccount && p.bankAccount !== data.bankAccount) alert = "⚠️ Bank Changed";
+    if (p.ip && p.ip !== data.ip)               alert = "⚠️ IP Changed";
+
+    const keys = ["currentEarnings","lastTransferAmount","lastTransferDate","nextTransferDate","bankAccount","ip","lastMonthEarnings"];
+    const changed = keys.some(k => (p[k]||"") !== (data[k]||""));
+    if (!changed && alert === p.alert) {
+      console.log("⏸️ No change; skip write"); return;
+    }
+  }
+
+  if (alert.startsWith("⚠️")) {
+    try { new Audio("https://www.allbyjohn.com/sounds/mturkscanner/lessthan15Short.mp3").play(); } catch {}
+  }
+
+  await setDoc(ref, { ...data, alert, timestamp: new Date() });
+  console.log(`[MTurk→Firebase] ✅ Synced ${workerId} (${alert})`);
+})();
