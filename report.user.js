@@ -178,4 +178,5 @@
 
   await setDoc(ref, { ...data, alert, timestamp: new Date() });
   console.log(`[MTurk→Firebase] ✅ Synced ${workerId} (${alert})`);
+  function closeIn(ms = 3000){ setTimeout(tryClosePage, ms); }
 })();
