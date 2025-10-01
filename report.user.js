@@ -1,8 +1,7 @@
 // ==UserScript==
-// @name         🔒 MTurk Earnings → Firebase + Alerts (Secure VM)
+// @name         🔒 MTurk Report
 // @namespace    ab2soft.secure
 // @version      3.3
-// @description  Sync MTurk earnings to Firebase only when changed, password locked per worker
 // @match        https://worker.mturk.com/earnings*
 // @grant        GM_getValue
 // @grant        GM_setValue
