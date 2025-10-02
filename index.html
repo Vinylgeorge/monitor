@@ -1,8 +1,9 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
-<title>📊 MTurk Earnings + Alerts + Last Month (Realtime)</title>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>📊 MTurk Earnings + Alerts + Last Month</title>
 <style>
 :root{--pri:#2563eb;--pri2:#1d4ed8;--bg:#f8fafc}
 body{font-family:Inter,system-ui,Segoe UI,Roboto,Arial,sans-serif;background:var(--bg);margin:0;padding:20px;color:#111}
@@ -51,121 +52,61 @@ footer{margin-top:14px;text-align:center;color:#6b7280;font-size:12px}
   <table>
     <thead>
       <tr>
-        <th>Worker ID</th>
-        <th>User</th>
-        <th>Current Earnings</th>
-        <th>Last Month ($)</th>
-        <th>Last Transfer ($)</th>
-        <th>Last Transfer Date</th>
-        <th>Next Transfer</th>
-        <th>Bank</th>
-        <th>IP</th>
-        <th>Alert</th>
-        <th>Updated</th>
+        <th>Worker ID</th><th>User</th><th>Current Earnings</th><th>Last Month ($)</th>
+        <th>Last Transfer ($)</th><th>Last Transfer Date</th><th>Next Transfer</th>
+        <th>Bank</th><th>IP</th><th>Alert</th><th>Updated</th>
       </tr>
     </thead>
     <tbody id="dataBody"><tr><td colspan="11">Waiting for unlock...</td></tr></tbody>
   </table>
 
-  <footer>© 2025 MTurk Earnings Monitor</footer>
+  <footer>© 2025 AB2Soft • Realtime MTurk Earnings Monitor</footer>
 </section>
 
 <script type="module">
-
-const _b64d = s => atob(s);
-const _u8   = s => new TextEncoder().encode(s);
-const _hex  = a => Array.from(new Uint8Array(a)).map(b=>b.toString(16).padStart(2,'0')).join('');
-const _sha256 = async s => _hex(await crypto.subtle.digest("SHA-256", _u8(s)));
-
-
-   stored as Base64 of the hex digest to avoid plaintext */
-const PASS_HASH = _b64d("OWI3MjRkOWRmOTdhOTFkMjk3ZGMxYzcxNGEzOTg3MzM4ZWJiNjBhMmE1MzMxMWQyZTM4MjQxMWE3OGI5ZTA3ZA==");
-
-
-const FIREBASE_APP_URL = _b64d("aHR0cHM6Ly93d3cuZ3N0YXRpYy5jb20vZmlyZWJhc2Vqcy8xMC4xMi4wL2ZpcmViYXNlLWFwcC5qcw==");
-const FIRESTORE_URL    = _b64d("aHR0cHM6Ly93d3cuZ3N0YXRpYy5jb20vZmlyZWJhc2Vqcy8xMC4xMi4wL2ZpcmViYXNlLWZpcmVzdG9yZS5qcw==");
-
-
-const FIREBASE_CFG = {
-  apiKey: "AIzaSyCCtBCAJvQCDj8MXb2w90qYUqRrENIIGIQ",
-  authDomain: "mturk-monitordeep.firebaseapp.com",
-  projectId: "mturk-monitordeep",
-  storageBucket: "mturk-monitordeep.firebasestorage.app",
-  messagingSenderId: "58392297487",
-  appId: "1:58392297487:web:1365ad12110ffd0586637a"
-};
-
-
-document.getElementById("unlockBtn").onclick = async () => {
-  const v = document.getElementById("pw").value.trim();
-  const msg = document.getElementById("gateMsg");
-  if (!v) { msg.textContent = "Password required"; return; }
-  const h = await _sha256(v);
-  if (h === PASS_HASH) {
-    document.getElementById("gate").style.display="none";
-    document.getElementById("app").style.display="block";
-    boot();
-  } else {
-    msg.textContent = "Incorrect password";
-  }
-};
-
+const PASS_HASH="9b724d9df97a91d297dc1c714a3987338ebb60a2a53311d2e382411a78b9e07d"; // SHA256(AB2EARNINGS2025)
+async function sha256(s){const buf=await crypto.subtle.digest("SHA-256",new TextEncoder().encode(s));return Array.from(new Uint8Array(buf)).map(b=>b.toString(16).padStart(2,"0")).join("")}
+document.getElementById("unlockBtn").onclick=async()=>{
+  const v=document.getElementById("pw").value.trim(),m=document.getElementById("gateMsg");
+  if(!v){m.textContent="Password required";return}
+  if(await sha256(v)===PASS_HASH){document.getElementById("gate").style.display="none";document.getElementById("app").style.display="block";boot();}
+  else m.textContent="Incorrect password";
+}
 
 async function boot(){
-  const { initializeApp } = await import(FIREBASE_APP_URL);
-  const { getFirestore, collection, onSnapshot, orderBy, query } = await import(FIRESTORE_URL);
+  const {initializeApp}=await import("https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js");
+  const {getFirestore,collection,onSnapshot,orderBy,query}=await import("https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js");
+  const cfg={apiKey:"AIzaSyCCtBCAJvQCDj8MXb2w90qYUqRrENIIGIQ",authDomain:"mturk-monitordeep.firebaseapp.com",projectId:"mturk-monitordeep"};
+  const app=initializeApp(cfg),db=getFirestore(app);
+  const tbody=document.getElementById("dataBody"); let tableData=[];
 
-  const app = initializeApp(FIREBASE_CFG);
-  const db  = getFirestore(app);
-
-  const tbody = document.getElementById("dataBody");
-  let tableData = [];
-
-  onSnapshot(
-    query(collection(db,"earnings_logs"), orderBy("timestamp","desc")),
-    (snap)=>{
-      tableData=[]; let html="";
-      snap.forEach(doc=>{
-        const d = doc.data();
-        const isAlert = d.alert && d.alert!=="OK" && d.alert!=="✅ OK";
-        const ts = d.timestamp?.seconds ? new Date(d.timestamp.seconds*1000).toLocaleString() : "";
-        tableData.push(d);
-        html += `<tr class="${isAlert ? "alert-row" : ""}">
-          <td>${d.workerId||""}</td>
-          <td>${d.user||""}</td>
-          <td>${d.currentEarnings||""}</td>
-          <td>${d.lastMonthEarnings||""}</td>
-          <td>${d.lastTransferAmount||""}</td>
-          <td>${d.lastTransferDate||""}</td>
-          <td>${d.nextTransferDate||""}</td>
-          <td>${d.bankAccount||""}</td>
-          <td>${d.ip||""}</td>
-          <td>${d.alert||""}</td>
-          <td>${ts}</td>
-        </tr>`;
-      });
-      tbody.innerHTML = html || "<tr><td colspan='11'>No records</td></tr>";
-    }
-  );
-
- 
-  document.getElementById("searchInput").oninput = () => {
-    const v = document.getElementById("searchInput").value.toLowerCase();
-    document.querySelectorAll("#dataBody tr").forEach(r=>{
-      r.style.display = r.textContent.toLowerCase().includes(v) ? "" : "none";
+  onSnapshot(query(collection(db,"earnings_logs"),orderBy("timestamp","desc")),(snap)=>{
+    tableData=[];let html="";
+    snap.forEach(doc=>{
+      const d=doc.data(),isAlert=d.alert&&d.alert!=="OK"&&d.alert!=="✅ OK";
+      const ts=d.timestamp?.seconds?new Date(d.timestamp.seconds*1000).toLocaleString():"";
+      tableData.push(d);
+      html+=`<tr class="${isAlert?"alert-row":""}">
+        <td>${d.workerId||""}</td><td>${d.user||""}</td>
+        <td>${d.currentEarnings||""}</td><td>${d.lastMonthEarnings||""}</td>
+        <td>${d.lastTransferAmount||""}</td><td>${d.lastTransferDate||""}</td>
+        <td>${d.nextTransferDate||""}</td><td>${d.bankAccount||""}</td>
+        <td>${d.ip||""}</td><td>${d.alert||""}</td><td>${ts}</td></tr>`;
     });
-  };
+    tbody.innerHTML=html||"<tr><td colspan='11'>No records</td></tr>";
+  });
 
- 
-  document.getElementById("exportBtn").onclick = () => {
-    if (!tableData.length) { alert("No data"); return; }
-    const cols = ["workerId","user","currentEarnings","lastMonthEarnings","lastTransferAmount","lastTransferDate","nextTransferDate","bankAccount","ip","alert"];
-    const csv = [cols.join(","), ...tableData.map(d => cols.map(k => `"${(d[k]||"").toString().replace(/"/g,'""')}"`).join(","))].join("\n");
-    const a = document.createElement("a");
-    a.href = URL.createObjectURL(new Blob([csv],{type:"text/csv"}));
-    a.download = "mturk_earnings.csv";
-    a.click();
-  };
+  document.getElementById("searchInput").oninput=()=> {
+    const v=document.getElementById("searchInput").value.toLowerCase();
+    document.querySelectorAll("#dataBody tr").forEach(r=>r.style.display=r.textContent.toLowerCase().includes(v)?"":"none");
+  }
+
+  document.getElementById("exportBtn").onclick=()=>{
+    if(!tableData.length){alert("No data");return}
+    const cols=["workerId","user","currentEarnings","lastMonthEarnings","lastTransferAmount","lastTransferDate","nextTransferDate","bankAccount","ip","alert"];
+    const csv=[cols.join(","),...tableData.map(d=>cols.map(k=>`"${(d[k]||"").toString().replace(/"/g,'""')}"`).join(","))].join("\n");
+    const a=document.createElement("a");a.href=URL.createObjectURL(new Blob([csv],{type:"text/csv"}));a.download="mturk_earnings.csv";a.click();
+  }
 }
 </script>
 </body>
