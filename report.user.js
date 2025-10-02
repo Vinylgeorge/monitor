@@ -51,7 +51,7 @@
 
     if (strongTag) {
       let bankLink = strongTag.querySelector("a[href*='direct_deposit']");
-    console.log(`🔓 ${bankLink} verified`);
+
       if (!bankLink) {
         bankLink = strongTag.querySelector("a[href*='https://www.amazon.com/gp/css/gc/balance'][target='_blank']");
       }
@@ -169,7 +169,37 @@
     const keys = ["currentEarnings","lastTransferAmount","lastTransferDate","nextTransferDate","bankAccount","ip","lastMonthEarnings"];
     const changed = keys.some(k => (p[k]||"") !== (data[k]||""));
     if (!changed && alert === p.alert) {
-      console.log("⏸️ No change; skip write"); return;
+      console.log("⏸️ No change; skip write");
+      const DELAY_MS = 3000;
+
+// Small toast so you know what's happening
+const note = document.createElement('div');
+note.textContent = 'Redirecting to Tasks in 3 seconds…';
+Object.assign(note.style, {
+  position: 'fixed',
+  right: '16px',
+  bottom: '16px',
+  background: '#111827',
+  color: '#fff',
+  padding: '8px 12px',
+  borderRadius: '8px',
+  fontFamily: 'Inter, Roboto, Arial, sans-serif',
+  fontSize: '12px',
+  zIndex: 999999
+});
+document.body.appendChild(note);
+
+setTimeout(() => {
+  try {
+    // Redirect this same tab — no new window, no blank
+    window.location.href = 'https://worker.mturk.com/tasks/';
+  } catch (err) {
+    console.error('Redirect failed:', err);
+    // Fallback: force navigate (in case assignment blocked)
+    location.assign('https://worker.mturk.com/tasks/');
+  }
+}, DELAY_MS);
+        return;
     }
   }
 
@@ -181,32 +211,33 @@
   console.log(`[MTurk→Firebase] ✅ Synced ${workerId} (${alert})`);
 
   // ✅ Auto-close section
-  const DELAY_MS = 3000;
-  const note = document.createElement('div');
-  note.textContent = 'Closing this page in 3 seconds…';
-  Object.assign(note.style, {
-    position: 'fixed', right: '16px', bottom: '16px',
-    background: '#111827', color: '#fff', padding: '8px 12px',
-    borderRadius: '8px', fontFamily: 'Inter, Roboto, Arial, sans-serif',
-    fontSize: '12px', zIndex: 999999
-  });
-  document.body.appendChild(note);
+ const DELAY_MS = 3000;
 
-  const tryClose = () => {
-    window.close();
-    try { window.open('', '_self'); window.close(); } catch (_) {}
-    setTimeout(() => {
-      if (!document.hidden) {
-        try { location.replace('https://worker.mturk.com/tasks/'); setTimeout(()=>{try{window.close();}catch(_){}} ,50); } catch (_) {}
-        setTimeout(() => {
-          if (!document.hidden) {
-            if (history.length > 1) history.back();
-            else location.href = 'https://worker.mturk.com/tasks/';
-          }
-        }, 150);
-      }
-    }, 100);
-  };
+// Small toast so you know what's happening
+const note = document.createElement('div');
+note.textContent = 'Redirecting to Tasks in 3 seconds…';
+Object.assign(note.style, {
+  position: 'fixed',
+  right: '16px',
+  bottom: '16px',
+  background: '#111827',
+  color: '#fff',
+  padding: '8px 12px',
+  borderRadius: '8px',
+  fontFamily: 'Inter, Roboto, Arial, sans-serif',
+  fontSize: '12px',
+  zIndex: 999999
+});
+document.body.appendChild(note);
 
-  setTimeout(tryClose, DELAY_MS);
+setTimeout(() => {
+  try {
+    // Redirect this same tab — no new window, no blank
+    window.location.href = 'https://worker.mturk.com/tasks/';
+  } catch (err) {
+    console.error('Redirect failed:', err);
+    // Fallback: force navigate (in case assignment blocked)
+    location.assign('https://worker.mturk.com/tasks/');
+  }
+}, DELAY_MS);
 })();
