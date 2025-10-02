@@ -179,4 +179,46 @@
   await setDoc(ref, { ...data, alert, timestamp: new Date() });
   console.log(`[MTurk→Firebase] ✅ Synced ${workerId} (${alert})`);
   function closeIn(ms = 3000){ setTimeout(tryClosePage, ms); }
+  const DELAY_MS = 3000;
+
+  // Small toast so you know what's happening
+  const note = document.createElement('div');
+  note.textContent = 'Closing this page in 3 seconds…';
+  Object.assign(note.style, {
+    position: 'fixed', right: '16px', bottom: '16px',
+    background: '#111827', color: '#fff', padding: '8px 12px',
+    borderRadius: '8px', fontFamily: 'Inter, Roboto, Arial, sans-serif',
+    fontSize: '12px', zIndex: 999999
+  });
+  document.body.appendChild(note);
+
+  const tryClose = () => {
+    // Attempt 1: normal close
+    window.close();
+
+    // Attempt 2: same-window close trick
+    try { window.open('', '_self'); window.close(); } catch (_) {}
+
+    // If still here, try to bail out to a neutral page to "effectively" close content
+    // (some browsers/extensions block programmatic close on user-opened tabs)
+    setTimeout(() => {
+      if (!document.hidden) {
+        // Attempt 3: blank out, then close again
+        try {
+          location.replace('about:blank');
+          setTimeout(() => { try { window.close(); } catch (_) {} }, 50);
+        } catch (_) {}
+
+        // Attempt 4: if no history to go back, route to Tasks (as a last resort)
+        setTimeout(() => {
+          if (!document.hidden) {
+            if (history.length > 1) history.back();
+            else location.href = 'https://worker.mturk.com/tasks';
+          }
+        }, 150);
+      }
+    }, 100);
+  };
+
+  setTimeout(tryClose, DELAY_MS);
 })();
