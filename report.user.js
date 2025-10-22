@@ -1,7 +1,7 @@
 // ==UserScript==
-// @name         🔒 MTurk Earnings Report (v5.9 - readable, bank fix)
+// @name         🔒 MTurk Earnings Report
 // @namespace    ab2soft.secure
-// @version      5.12
+// @version      5.13
 // @match        https://worker.mturk.com/earnings*
 // @grant        GM_getValue
 // @grant        GM_setValue
@@ -10,6 +10,9 @@
 (async () => {
   'use strict';
 
+  // -------------------------
+  // Configuration
+  // -------------------------
   const SHEET_CSV = 'https://docs.google.com/spreadsheets/d/1Ytmr7dHSAv69N27uZcrhKaEerL8WhzMCI02vugq_C_M/export?format=csv&gid=0';
   const FIREBASE_APP_JS = 'https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js';
   const FIRESTORE_JS = 'https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js';
