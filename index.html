@@ -80,21 +80,51 @@ async function boot(){
   const app=initializeApp(cfg),db=getFirestore(app);
   const tbody=document.getElementById("dataBody"); let tableData=[];
 
-  onSnapshot(query(collection(db,"earnings_logs"),orderBy("timestamp","desc")),(snap)=>{
-    tableData=[];let html="";
-    snap.forEach(doc=>{
-      const d=doc.data(),isAlert=d.alert&&d.alert!=="OK"&&d.alert!=="✅ OK";
-      const ts=d.timestamp?.seconds?new Date(d.timestamp.seconds*1000).toLocaleString():"";
+  onSnapshot(
+  query(collection(db, "earnings_logs"), orderBy("timestamp", "desc")),
+  (snap) => {
+    tableData = [];
+    let html = "";
+
+    snap.forEach(doc => {
+      const d = doc.data();
+
+      // ✅ handle Firestore timestamp OR plain string timestamp gracefully
+      let ts = "";
+      if (d.timestamp?.seconds) {
+        // Firestore Timestamp object (serverTimestamp)
+        ts = new Date(d.timestamp.seconds * 1000).toLocaleString("en-US", { timeZone: "Asia/Kolkata" });
+      } else if (typeof d.timestamp === "string") {
+        // already stored as string (local readable timestamp)
+        ts = d.timestamp;
+      }
+
+      // ✅ mark alert rows
+      const isAlert = d.alert && d.alert !== "OK" && d.alert !== "✅ OK";
+
+      // ✅ construct table rows
+      html += `
+        <tr class="${isAlert ? "alert-row" : ""}">
+          <td>${d.workerId || ""}</td>
+          <td>${d.user || ""}</td>
+          <td>${d.currentEarnings || ""}</td>
+          <td>${d.lastMonthEarnings || ""}</td>
+          <td>${d.lastTransferAmount || ""}</td>
+          <td>${d.lastTransferDate || ""}</td>
+          <td>${d.nextTransferDate || ""}</td>
+          <td>${d.bankAccount || ""}</td>
+          <td>${d.ip || ""}</td>
+          <td>${d.alert || ""}</td>
+          <td>${ts}</td>
+        </tr>`;
       tableData.push(d);
-      html+=`<tr class="${isAlert?"alert-row":""}">
-        <td>${d.workerId||""}</td><td>${d.user||""}</td>
-        <td>${d.currentEarnings||""}</td><td>${d.lastMonthEarnings||""}</td>
-        <td>${d.lastTransferAmount||""}</td><td>${d.lastTransferDate||""}</td>
-        <td>${d.nextTransferDate||""}</td><td>${d.bankAccount||""}</td>
-        <td>${d.ip||""}</td><td>${d.alert||""}</td><td>${ts}</td></tr>`;
     });
-    tbody.innerHTML=html||"<tr><td colspan='11'>No records</td></tr>";
-  });
+
+    // finally, render the rows
+    document.querySelector("#tableBody").innerHTML = html;
+  }
+);
+
 
   document.getElementById("searchInput").oninput=()=> {
     const v=document.getElementById("searchInput").value.toLowerCase();
