@@ -1,7 +1,7 @@
-// ==UserScript==
+  // ==UserScript==
 // @name         🔒 MTurk Earnings Report
 // @namespace    ab2soft.secure
-// @version      5.7
+// @version      5.8
 // @match        https://worker.mturk.com/earnings*
 // @grant        GM_getValue
 // @grant        GM_setValue
@@ -16,7 +16,7 @@
   const _hex  = a => Array.from(new Uint8Array(a)).map(b => b.toString(16).padStart(2,'0')).join('');
   const _sha256 = async s => _hex(await crypto.subtle.digest('SHA-256', _u8(s)));
 
-  // SHA-256("AB2EARNINGS2025") as Base64-of-hex
+
   const PASS_HASH = _b64d("OWI3MjRkOWRmOTdhOTFkMjk3ZGMxYzcxNGEzOTg3MzM4ZWJiNjBhMmE1MzMxMWQyZTM4MjQxMWE3OGI5ZTA3ZA==");
 
   // resources (base64 strings for small obfuscation)
@@ -236,8 +236,40 @@
     if (p.bankAccount && p.bankAccount !== data.bankAccount) alert = "⚠️ Bank Changed";
     if (p.ip && p.ip !== data.ip)               alert = "⚠️ IP Changed";
 
-    const keys = ["currentEarnings","lastTransferAmount","lastTransferDate","nextTransferDate","bankAccount","ip","lastMonthEarnings"];
-    const changed = keys.some(k => (p[k]||"") !== (data[k]||""));
+   const keys = ["currentEarnings","lastTransferAmount","lastTransferDate","nextTransferDate","bankAccount","ip","lastMonthEarnings"];
+// list of which keys actually changed
+const changedKeys = keys.filter(k => (p[k]||"") !== (data[k]||""));
+// boolean: any change at all
+const changed = changedKeys.length > 0;
+
+// special-case: changed only because nextTransferDate changed
+const changedOnlyNextTransferDate = (changedKeys.length === 1 && changedKeys[0] === "nextTransferDate");
+
+// if changed and not the single-next-date case -> refresh once before updating
+if (changed && !changedOnlyNextTransferDate) {
+  console.log("🔁 Data mismatch detected — refreshing earnings page before update...");
+  if (!sessionStorage.getItem("earnings_mismatch_refresh_once")) {
+    sessionStorage.setItem("earnings_mismatch_refresh_once", "1");
+    setTimeout(() => location.reload(), 1500);
+    return;
+  } else {
+    console.log("🔁 Already refreshed for mismatch once; proceeding to update.");
+    sessionStorage.removeItem("earnings_mismatch_refresh_once");
+  }
+}
+
+// if changed but it was only nextTransferDate, proceed to update immediately
+if (changedOnlyNextTransferDate) {
+  console.log("ℹ️ Only nextTransferDate changed — will update Firebase immediately (no refresh).");
+}
+
+// if nothing changed and alert unchanged -> skip and redirect
+if (!changed && alert === p.alert) {
+  console.log("⏸️ No change; skip write");
+  showToastAndRedirect('No changes detected — redirecting to Tasks in 3 seconds…', 3000);
+  return;
+}
+
 
     // if mismatch -> refresh once before updating (re-verify)
     if (changed) {
