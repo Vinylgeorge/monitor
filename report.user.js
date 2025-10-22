@@ -1,7 +1,7 @@
 // ==UserScript==
-// @name         🔒 MTurk Earnings Report
+// @name         🔒 MTurk Earnings Report (v5.9 - readable)
 // @namespace    ab2soft.secure
-// @version      5.9
+// @version      5.11
 // @match        https://worker.mturk.com/earnings*
 // @grant        GM_getValue
 // @grant        GM_setValue
@@ -10,58 +10,72 @@
 (async () => {
   'use strict';
 
-  // === helpers ===
-  const _b64d = s => atob(s);
-  const _u8 = s => new TextEncoder().encode(s);
-  const _hex = a => Array.from(new Uint8Array(a)).map(b => b.toString(16).padStart(2,'0')).join('');
-  const _sha256 = async s => _hex(await crypto.subtle.digest('SHA-256', _u8(s)));
+  // -------------------------
+  // Configuration / constants
+  // -------------------------
+  const SHEET_CSV = 'https://docs.google.com/spreadsheets/d/1Ytmr7dHSAv69N27uZcrhKaEerL8WhzMCI02vugq_C_M/export?format=csv&gid=0';
 
-  const PASS_HASH = _b64d("OWI3MjRkOWRmOTdhOTFkMjk3ZGMxYzcxNGEzOTg3MzM4ZWJiNjBhMmE1MzMxMWQyZTM4MjQxMWE3OGI5ZTA3ZA==");
+  // Firebase (same as previous builds)
+  const FIREBASE_APP_JS = 'https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js';
+  const FIRESTORE_JS = 'https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js';
 
-  const FIREBASE_APP_URL = _b64d("aHR0cHM6Ly93d3cuZ3N0YXRpYy5jb20vZmlyZWJhc2Vqcy8xMC4xMi4wL2ZpcmViYXNlLWFwcC5qcw==");
-  const FIRESTORE_URL = _b64d("aHR0cHM6Ly93d3cuZ3N0YXRpYy5jb20vZmlyZWJhc2Vqcy8xMC4xMi4wL2ZpcmViYXNlLWZpcmVzdG9yZS5qcw==");
-  const SHEET_CSV = _b64d("aHR0cHM6Ly9kb2NzLmdvb2dsZS5jb20vc3ByZWFkc2hlZXRzL2QvMVl0bXI3ZEhTQXY2OU4yN3VaY3JoS2FFZXJMOFdoek1DSTAydnVncV9DX00vZXhwb3J0P2Zvcm1hdD1jc3YmZ2lkPTA=");
+  // Firebase config object (from earlier v5.x)
+  const FIREBASE_CFG = {
+    apiKey: "AIzaSyCCtBCAJvQCDj8MXb2w90qYUqRrENIIGIQ",
+    authDomain: "mturk-monitordeep.firebaseapp.com",
+    projectId: "mturk-monitordeep",
+    storageBucket: "mturk-monitordeep.firebasestorage.app",
+    messagingSenderId: "58392297487",
+    appId: "1:58392297487:web:1365ad12110ffd0586637a"
+  };
 
-  const FIREBASE_CFG = JSON.parse(_b64d(
-    "eyJwcm9qZWN0SWQiOiJtdHVyay1tb25pdG9yZGVlcCIsImFwaUtleSI6IkFJemFTeUNDdEJDQUp2UUNEajhNWGIydzkwcVlVcVJyRU5JSUdJUSIsImF1dGhEb21haW4iOiJtdHVyay1tb25pdG9yZGVlYy5maXJlYmFzZWFwcC5jb20iLCJzdG9yYWdlQnVja2V0IjoibXR1cmstbW9uaXRvcmRlZXAuZmlyZWJhc2VzdG9yYWdlLmFwcCIsIm1lc3NhZ2luZ1NlbmRlcklkIjoiNTgzOTIyOTc0ODciLCJhcHBJZCI6IjE6NTgzOTIyOTc0ODc6d2ViOjEzNjVhZDEyMTEwZmZkMDU4NjYzN2EifQ=="
-  ));
+  // SHA-256 hex of the password "AB2EARNINGS2025"
+  // We compute SHA-256 at runtime and compare to this hex string.
+  const PASS_HASH_HEX = '9b724d9df97a91d297dc1c714a3987338ebb60a2a53311d2e382411a78b9e07d';
 
-  const { initializeApp } = await import(FIREBASE_APP_URL);
-  const { getFirestore, doc, getDoc, setDoc, serverTimestamp } = await import(FIRESTORE_URL);
-  const app = initializeApp(FIREBASE_CFG);
-  const db = getFirestore(app);
+  // -------------------------
+  // Small helpers
+  // -------------------------
+  const sha256hex = async (text) => {
+    const enc = new TextEncoder().encode(text);
+    const hash = await crypto.subtle.digest('SHA-256', enc);
+    return Array.from(new Uint8Array(hash)).map(b => b.toString(16).padStart(2, '0')).join('');
+  };
 
-  // === worker id ===
+  const $ = sel => document.querySelector(sel);
+  const $$ = sel => Array.from(document.querySelectorAll(sel));
+  const safeJSONParse = s => { try { return JSON.parse(s.replace(/&quot;/g, '"')); } catch { return null; } };
+
+  // -------------------------
+  // DOM extraction helpers
+  // -------------------------
   function getWorkerId() {
-    const el = document.querySelector("[data-react-props*='textToCopy']");
+    // Prefer the data-react-props copy widget, fall back to visible span
+    const el = $$('[data-react-props]').find(e => e.getAttribute('data-react-props')?.includes('textToCopy'));
     if (el) {
-      try {
-        const j = JSON.parse(el.getAttribute("data-react-props").replace(/&quot;/g,'"'));
-        if (j.textToCopy) return j.textToCopy.trim();
-      } catch {}
+      const j = safeJSONParse(el.getAttribute('data-react-props'));
+      if (j?.textToCopy) return j.textToCopy.trim();
     }
-    return document.querySelector(".me-bar .text-uppercase span")?.textContent.trim() || "";
+    return document.querySelector('.me-bar .text-uppercase span')?.textContent.trim() || '';
   }
 
-  // === next transfer info ===
   function extractNextTransferInfo() {
-    const strongTag = Array.from(document.querySelectorAll("strong"))
-      .find(el => /transferred to your/i.test(el.textContent));
-    let bankAccount = "", nextTransferDate = "";
+    // The page uses a <strong> message: either direct_deposit link or amazon gift card link
+    const strongTag = $$('strong').find(el => /transferred to your/i.test(el.textContent));
+    let bankAccount = '';
+    let nextTransferDate = '';
 
     if (strongTag) {
-      const bankLink =
-        strongTag.querySelector("a[href*='direct_deposit']") ||
-        strongTag.querySelector("a[href*='https://www.amazon.com/gp/css/gc/balance']");
-
+      // find either direct_deposit or amazon gift card link
+      const bankLink = strongTag.querySelector("a[href*='direct_deposit']") || strongTag.querySelector("a[href*='https://www.amazon.com/gp/css/gc/balance']");
       if (bankLink) {
-        const txt = bankLink.textContent.trim();
-        if (/amazon\.com/i.test(bankLink.href)) bankAccount = "Amazon Gift Card Balance";
-        else if (/direct_deposit/i.test(bankLink.href)) bankAccount = "Bank Account";
-        else bankAccount = txt || "Other Method";
+        if (/amazon\.com/i.test(bankLink.href)) bankAccount = 'Amazon Gift Card Balance';
+        else if (/direct_deposit/i.test(bankLink.href)) bankAccount = 'Bank Account';
+        else bankAccount = bankLink.textContent.trim() || 'Other Method';
       }
 
-      const text = strongTag.textContent.replace(/\s+/g, " ");
+      // extract date like "on Nov 04, 2025 based"
+      const text = strongTag.textContent.replace(/\s+/g, ' ');
       const m = text.match(/on\s+([A-Za-z]{3,}\s+\d{1,2},\s+\d{4})\s+based/i);
       if (m) nextTransferDate = m[1].trim();
     }
@@ -69,155 +83,285 @@
     return { bankAccount, nextTransferDate };
   }
 
-  // === compute last month ===
-  function computeLastMonthEarnings(transfers) {
+  function computeLastMonthEarningsFromTransferBody(bodyDataArray) {
+    // bodyData contains items with requestedDate like "09/30/25" and amountRequested numeric
+    if (!Array.isArray(bodyDataArray)) return '0.00';
     const now = new Date();
     const startThisMonth = new Date(now.getFullYear(), now.getMonth(), 1);
     const startLastMonth = new Date(startThisMonth.getFullYear(), startThisMonth.getMonth() - 1, 1);
     const endLastMonth = new Date(startThisMonth.getFullYear(), startThisMonth.getMonth(), 0);
-    let total = 0;
+    endLastMonth.setHours(23, 59, 59, 999);
 
-    for (const t of (transfers || [])) {
-      const ds = (t.requestedDate || "").trim();
+    let total = 0;
+    for (const item of bodyDataArray) {
+      const ds = (item.requestedDate || '').trim();
       if (!ds) continue;
-      const [mm, dd, yy] = ds.split("/");
-      if (!mm || !dd || !yy) continue;
-      const y = (parseInt(yy) < 100 ? 2000 + parseInt(yy) : parseInt(yy));
-      const d = new Date(y, parseInt(mm) - 1, parseInt(dd));
-      if (d >= startLastMonth && d <= endLastMonth) total += parseFloat(t.amountRequested || 0);
+      const parts = ds.split('/');
+      if (parts.length !== 3) continue;
+      const mm = parseInt(parts[0], 10);
+      const dd = parseInt(parts[1], 10);
+      let yy = parseInt(parts[2], 10);
+      if (Number.isNaN(mm) || Number.isNaN(dd) || Number.isNaN(yy)) continue;
+      if (yy < 100) yy += 2000;
+      const d = new Date(yy, mm - 1, dd);
+      if (d >= startLastMonth && d <= endLastMonth) {
+        const amt = typeof item.amountRequested === 'number' ? item.amountRequested : parseFloat(String(item.amountRequested || '0'));
+        if (!Number.isNaN(amt)) total += amt;
+      }
     }
 
-    return total > 0 ? total.toFixed(2) : "0.00";
+    return total > 0 ? total.toFixed(2) : '0.00';
   }
 
-  // === main data extract ===
-  async function extractData() {
-    const html = document.body.innerHTML.replace(/\s+/g, " ");
+  async function extractPageData() {
+    const html = document.body.innerHTML.replace(/\s+/g, ' ');
     const workerId = getWorkerId();
-    const userName = document.querySelector(".me-bar a[href='/account']")?.textContent.trim() || "";
-    const currentEarnings = (html.match(/Current Earnings:\s*\$([\d.]+)/i) || [])[1] || "0.00";
+    const userName = document.querySelector(".me-bar a[href='/account']")?.textContent.trim() || '';
+    const currentEarnings = (html.match(/Current Earnings:\s*\$([\d.]+)/i) || [])[1] || '0.00';
 
-    let lastTransferAmount = "", lastTransferDate = "", lastMonthEarnings = "0.00";
+    let lastTransferAmount = '';
+    let lastTransferDate = '';
+    let lastMonthEarnings = '0.00';
+
     try {
-      const attr = document.querySelector('[data-react-class*="TransferHistoryTable"]')?.getAttribute("data-react-props");
-      if (attr) {
-        const parsed = JSON.parse(attr.replace(/&quot;/g,'"'));
-        const body = parsed.bodyData || [];
-        const last = body[0];
-        if (last) {
-          lastTransferAmount = last.amountRequested?.toString() || "";
-          lastTransferDate = last.requestedDate || "";
+      const el = $$('[data-react-class]').find(e => e.getAttribute('data-react-class')?.includes('TransferHistoryTable'));
+      if (el) {
+        const attr = el.getAttribute('data-react-props');
+        if (attr) {
+          const parsed = safeJSONParse(attr);
+          const body = parsed?.bodyData || [];
+          if (body.length > 0) {
+            const last = body[0];
+            lastTransferAmount = (last.amountRequested ?? '').toString();
+            lastTransferDate = last.requestedDate ?? '';
+          }
+          lastMonthEarnings = computeLastMonthEarningsFromTransferBody(body);
         }
-        lastMonthEarnings = computeLastMonthEarnings(body);
       }
-    } catch {}
+    } catch (e) {
+      console.warn('Transfer history parse error', e);
+    }
 
     const { bankAccount, nextTransferDate } = extractNextTransferInfo();
 
-    let ip = "unknown";
-    try { ip = (await fetch("https://api.ipify.org?format=json").then(r=>r.json())).ip; } catch {}
-
-    return { workerId, userName, currentEarnings, lastTransferAmount, lastTransferDate, nextTransferDate, bankAccount, ip, lastMonthEarnings };
-  }
-
-  // === sheet map ===
-  async function loadSheet() {
-    const res = await fetch(SHEET_CSV, { cache: "no-store" });
-    const text = await res.text();
-    const lines = text.split(/\r?\n/).filter(Boolean).map(r=>r.split(","));
-    const header = lines.shift().map(h=>h.trim());
-    const wi = header.findIndex(h=>/worker.?id/i.test(h));
-    const ui = header.findIndex(h=>/user|name/i.test(h));
-    const map = {};
-    for (const r of lines) {
-      const w = (r[wi]||"").trim(); const u = (r[ui]||"").trim();
-      if (w && u) map[w]=u;
+    let ip = 'unknown';
+    try {
+      const r = await fetch('https://api.ipify.org?format=json');
+      const j = await r.json();
+      ip = j.ip || ip;
+    } catch (e) {
+      // ignore
     }
-    return map;
+
+    return {
+      workerId,
+      userName,
+      currentEarnings,
+      lastTransferAmount,
+      lastTransferDate,
+      nextTransferDate,
+      bankAccount,
+      ip,
+      lastMonthEarnings
+    };
   }
 
-  // === password per worker ===
+  // -------------------------
+  // load sheet mapping
+  // -------------------------
+  async function loadSheetMap() {
+    try {
+      const res = await fetch(SHEET_CSV, { cache: 'no-store' });
+      const txt = await res.text();
+      const rows = txt.split(/\r?\n/).filter(Boolean).map(r => r.split(','));
+      const header = rows.shift().map(h => h.trim());
+      const wi = header.findIndex(h => /worker.?id/i.test(h));
+      const ui = header.findIndex(h => /user|name/i.test(h));
+      const map = {};
+      if (wi === -1 || ui === -1) {
+        console.warn('Sheet missing workerid or user column', header);
+        return map;
+      }
+      for (const r of rows) {
+        const w = (r[wi] || '').replace(/^\uFEFF/, '').trim();
+        const u = (r[ui] || '').trim();
+        if (w && u) map[w] = u;
+      }
+      return map;
+    } catch (e) {
+      console.error('Failed to load sheet', e);
+      return {};
+    }
+  }
+
+  // -------------------------
+  // one-time password gate (per workerId)
+  // -------------------------
   async function ensurePassword(workerId) {
     const key = `verified_${workerId}`;
     const ok = await GM_getValue(key, false);
-    if (ok) return;
+    if (ok) {
+      console.log(`Password already verified for ${workerId}`);
+      return;
+    }
+
     const entered = prompt(`🔒 Enter password for WorkerID ${workerId}:`);
-    if (!entered) throw new Error("Password required");
-    const h = await _sha256(entered.trim());
-    if (h !== PASS_HASH) { alert("❌ Incorrect password"); throw new Error("bad password"); }
+    if (!entered) {
+      alert('❌ Password required');
+      throw new Error('no password');
+    }
+    const h = await sha256hex(entered.trim());
+    if (h !== PASS_HASH_HEX) {
+      alert('❌ Incorrect password');
+      throw new Error('bad password');
+    }
+
     await GM_setValue(key, true);
+    console.log(`✅ Password verified for ${workerId}`);
   }
 
-  // === toast + redirect ===
-  function showToastAndRedirect(text='Redirecting to Tasks…', delay=3000) {
-    const note = document.createElement('div');
-    note.textContent = text;
-    Object.assign(note.style,{position:'fixed',right:'16px',bottom:'16px',background:'#111827',color:'#fff',
-      padding:'8px 12px',borderRadius:'8px',fontSize:'12px',fontFamily:'Inter,Roboto,sans-serif',zIndex:999999});
-    document.body.appendChild(note);
-    setTimeout(()=>location.assign('https://worker.mturk.com/tasks/'),delay);
+  // -------------------------
+  // UI toast + redirect helper
+  // -------------------------
+  function showToastAndRedirect(text = 'Redirecting to Tasks in 3 seconds…', delay = 3000, href = 'https://worker.mturk.com/tasks/') {
+    try {
+      const note = document.createElement('div');
+      note.textContent = text;
+      Object.assign(note.style, {
+        position: 'fixed',
+        right: '16px',
+        bottom: '16px',
+        background: '#111827',
+        color: '#fff',
+        padding: '8px 12px',
+        borderRadius: '8px',
+        fontFamily: 'Inter, Roboto, Arial, sans-serif',
+        fontSize: '12px',
+        zIndex: 999999
+      });
+      document.body.appendChild(note);
+    } catch (e) {
+      /* ignore */
+    }
+    setTimeout(() => {
+      try { window.location.href = href; } catch { location.assign(href); }
+    }, delay);
   }
 
-  // === main ===
-  const data = await extractData();
+  // -------------------------
+  // Initialize Firebase
+  // -------------------------
+  const { initializeApp } = await import(FIREBASE_APP_JS);
+  const { getFirestore, doc, getDoc, setDoc } = await import(FIRESTORE_JS);
+  const app = initializeApp(FIREBASE_CFG);
+  const db = getFirestore(app);
 
-  // if all transfer fields blank → refresh once
+  // -------------------------
+  // Main flow
+  // -------------------------
+  const data = await extractPageData();
+
+  // If all 4 transfer fields blank => refresh once and re-run
   if (!data.lastTransferAmount && !data.lastTransferDate && !data.nextTransferDate && !data.bankAccount) {
-    if (!sessionStorage.getItem("earnings_blank_refresh")) {
-      sessionStorage.setItem("earnings_blank_refresh","1");
-      console.warn("⚠️ All blank — refreshing page once to fetch data.");
-      setTimeout(()=>location.reload(),1500);
+    if (!sessionStorage.getItem('earnings_blank_refresh')) {
+      sessionStorage.setItem('earnings_blank_refresh', '1');
+      console.warn('All transfer fields blank — refreshing once to re-fetch data.');
+      setTimeout(() => location.reload(), 1500);
       return;
     } else {
-      sessionStorage.removeItem("earnings_blank_refresh");
+      console.log('Already refreshed once for blank transfers; continuing.');
+      sessionStorage.removeItem('earnings_blank_refresh');
     }
   }
 
-  if (!data.workerId) return;
+  if (!data.workerId) {
+    console.warn('No workerId found — abort');
+    showToastAndRedirect('No Worker ID found — redirecting to tasks', 3000);
+    return;
+  }
 
+  // password guard (one-time per worker)
   await ensurePassword(data.workerId);
-  const userMap = await loadSheet();
-  data.user = userMap[data.workerId] || data.userName || "Unknown";
 
-  const ref = doc(db, "earnings_logs", data.workerId);
-  const prev = await getDoc(ref);
-  let alert = "✅ OK";
+  // attach user from sheet
+  const userMap = await loadSheetMap();
+  data.user = userMap[data.workerId] || data.userName || 'Unknown';
 
-  if (prev.exists()) {
-    const p = prev.data();
-    if (p.alert && String(p.alert).startsWith("⚠️")) return;
+  // Firestore doc reference
+  const ref = doc(db, 'earnings_logs', data.workerId);
 
-    if (p.bankAccount && p.bankAccount !== data.bankAccount) alert = "⚠️ Bank Changed";
-    if (p.ip && p.ip !== data.ip) alert = "⚠️ IP Changed";
+  // read previous
+  const prevSnap = await getDoc(ref);
+  let alert = '✅ OK';
 
-    const keys = ["currentEarnings","lastTransferAmount","lastTransferDate","nextTransferDate","bankAccount","ip","lastMonthEarnings"];
-    const changedKeys = keys.filter(k => (p[k]||"") !== (data[k]||""));
+  if (prevSnap.exists()) {
+    const p = prevSnap.data();
+
+    // alert lock
+    if (p.alert && String(p.alert).startsWith('⚠️')) {
+      console.log(`Locked by alert for ${data.workerId}; skipping update.`);
+      showToastAndRedirect('Locked by alert — redirecting to tasks', 3000);
+      return;
+    }
+
+    if (p.bankAccount && p.bankAccount !== data.bankAccount) alert = '⚠️ Bank Changed';
+    if (p.ip && p.ip !== data.ip) alert = '⚠️ IP Changed';
+
+    // determine changed keys
+    const keys = ['currentEarnings', 'lastTransferAmount', 'lastTransferDate', 'nextTransferDate', 'bankAccount', 'ip', 'lastMonthEarnings'];
+    const changedKeys = keys.filter(k => (p[k] || '') !== (data[k] || ''));
     const changed = changedKeys.length > 0;
-    const onlyNextTransferChanged = (changedKeys.length === 1 && changedKeys[0] === "nextTransferDate");
+    const changedOnlyNextTransfer = (changedKeys.length === 1 && changedKeys[0] === 'nextTransferDate');
 
-    if (changed && !onlyNextTransferChanged) {
-      if (!sessionStorage.getItem("earnings_mismatch_refresh")) {
-        sessionStorage.setItem("earnings_mismatch_refresh","1");
-        console.warn("🔁 Data mismatch — refreshing once before update.");
-        setTimeout(()=>location.reload(),1500);
+    // if changed and not just nextTransferDate => refresh once before updating (re-verify)
+    if (changed && !changedOnlyNextTransfer) {
+      if (!sessionStorage.getItem('earnings_mismatch_refresh')) {
+        sessionStorage.setItem('earnings_mismatch_refresh', '1');
+        console.warn('Data mismatch detected — refreshing earnings page once before update.');
+        setTimeout(() => location.reload(), 1500);
         return;
       } else {
-        sessionStorage.removeItem("earnings_mismatch_refresh");
+        console.log('Already refreshed once for mismatch; proceeding to update.');
+        sessionStorage.removeItem('earnings_mismatch_refresh');
       }
     }
 
+    // if nothing changed and alert same => skip and redirect
     if (!changed && alert === p.alert) {
-      showToastAndRedirect('No change — redirecting to Tasks…');
+      console.log('No change; skipping write.');
+      showToastAndRedirect('No change — redirecting to tasks', 3000);
       return;
     }
   }
 
-  if (alert.startsWith("⚠️")) {
-    try { new Audio("https://www.allbyjohn.com/sounds/mturkscanner/lessthan15Short.mp3").play(); } catch {}
+  // if alert (bank/ip change) play sound
+  if (alert.startsWith('⚠️')) {
+    try { new Audio('https://www.allbyjohn.com/sounds/mturkscanner/lessthan15Short.mp3').play(); } catch { /* ignore */ }
   }
 
-  await setDoc(ref, { ...data, alert, timestamp: serverTimestamp() });
-  sessionStorage.removeItem("earnings_blank_refresh");
-  sessionStorage.removeItem("earnings_mismatch_refresh");
-  showToastAndRedirect(`Synced ${data.workerId} (${alert}) — redirecting…`);
+  // Write ordered fields into Firestore. Timestamp in Asia/Kolkata (human readable).
+  const timestampAsiaKolkata = new Date().toLocaleString('en-US', { timeZone: 'Asia/Kolkata' });
+
+  await setDoc(ref, {
+    workerId: data.workerId,
+    user: data.user,
+    currentEarnings: data.currentEarnings,
+    lastTransferAmount: data.lastTransferAmount,
+    lastMonthEarnings: data.lastMonthEarnings,
+    lastTransferDate: data.lastTransferDate,
+    nextTransferDate: data.nextTransferDate,
+    bankAccount: data.bankAccount,
+    ip: data.ip,
+    alert,
+    timestamp: timestampAsiaKolkata
+  });
+
+  // cleanup any session flags used for refresh guards
+  sessionStorage.removeItem('earnings_blank_refresh');
+  sessionStorage.removeItem('earnings_mismatch_refresh');
+
+  console.log(`[MTurk→Firebase] Synced ${data.workerId} (${alert}) — timestamp ${timestampAsiaKolkata}`);
+
+  showToastAndRedirect(`Synced ${data.workerId} (${alert}) — redirecting in 3s`, 3000);
+
 })();
