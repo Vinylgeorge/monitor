@@ -23,21 +23,22 @@ const firebaseConfig = {
 const app = initializeApp(firebaseConfig);
 const db = getFirestore(app);
 
-// Globals for CSV export
-let tableData = [];
+// Utility: format number
 const fmt = n => isNaN(n) ? "" : Number(n).toFixed(2);
 
-// --- CSV Export ---
-function exportCSV() {
-  if (!tableData.length) {
-    alert("⚠️ No data to export yet.");
-    return;
-  }
+// Global data cache
+let tableData = [];
+
+// --- CSV export function ---
+function downloadCSV() {
+  if (!tableData.length) return alert("No data to export!");
+
   const headers = [
     "Worker ID","User","Current ($)","Last Month ($)",
-    "Last Transfer ($)","Last Date","Next Transfer",
-    "Bank / Gift Card","IP","Alert","Timestamp"
+    "Last Transfer ($)","Last Transfer Date",
+    "Next Transfer Date","Bank / Gift Card","IP","Alert","Timestamp"
   ];
+
   const rows = tableData.map(d => [
     d.workerId || "",
     d.user || "",
@@ -49,40 +50,154 @@ function exportCSV() {
     d.bankAccount || "",
     d.ip || "",
     d.alert || "",
-    d.timestamp?.seconds
-      ? new Date(d.timestamp.seconds * 1000).toLocaleString("en-US", { timeZone: "Asia/Kolkata" })
-      : (typeof d.timestamp === "string" ? d.timestamp : "")
+    d.timestampStr || ""
   ]);
 
   const csv = [headers, ...rows]
-    .map(r => r.map(x => `"${String(x).replace(/"/g, '""')}"`).join(","))
+    .map(r => r.map(x => `"${String(x).replace(/"/g,'""')}"`).join(","))
     .join("\n");
 
-  const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
-  const link = document.createElement("a");
-  link.href = URL.createObjectURL(blob);
-  link.download = `mturk_earnings_${new Date().toISOString().slice(0,10)}.csv`;
-  link.click();
+  const blob = new Blob([csv], { type: "text/csv" });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = `MTurk_Earnings_${new Date().toISOString().split("T")[0]}.csv`;
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  URL.revokeObjectURL(url);
 }
 
-// --- Live Snapshot ---
+// --- Real-time snapshot listener ---
 onSnapshot(
   query(collection(db, "earnings_logs"), orderBy("timestamp", "desc")),
   (snap) => {
     const tbody = document.querySelector("#tableBody");
     const totalElem = document.querySelector("#totalCurrentEarnings");
     if (!tbody || !totalElem) {
-      console.error("❌ Missing table elements");
+      console.error("❌ Required elements not found");
       return;
     }
 
-    tableData = [];
     let html = "";
     let totalCurrent = 0;
+    tableData = [];
 
     snap.forEach(doc => {
       const d = doc.data();
 
-      // Convert timestamp
+      // Convert Firestore timestamp → readable local time
       let ts = "";
-      if (d.timestamp?.seconds
+      if (d.timestamp?.seconds) {
+        ts = new Date(d.timestamp.seconds * 1000)
+          .toLocaleString("en-US", { timeZone: "Asia/Kolkata" });
+      } else if (typeof d.timestamp === "string") {
+        ts = d.timestamp;
+      }
+      d.timestampStr = ts;
+
+      const cur = parseFloat(d.currentEarnings) || 0;
+      totalCurrent += cur;
+
+      const isAlert = d.alert && d.alert !== "OK" && d.alert !== "✅ OK";
+      html += `
+        <tr class="${isAlert ? "alert-row" : ""}">
+          <td>${d.workerId || ""}</td>
+          <td>${d.user || ""}</td>
+          <td>${fmt(d.currentEarnings)}</td>
+          <td>${fmt(d.lastMonthEarnings)}</td>
+          <td>${fmt(d.lastTransferAmount)}</td>
+          <td>${d.lastTransferDate || ""}</td>
+          <td>${d.nextTransferDate || ""}</td>
+          <td>${d.bankAccount || ""}</td>
+          <td>${d.ip || ""}</td>
+          <td>${d.alert || ""}</td>
+          <td>${ts}</td>
+        </tr>`;
+
+      tableData.push(d);
+    });
+
+    totalElem.textContent = `Current Earnings This Month: $${fmt(totalCurrent)}`;
+    tbody.innerHTML = html;
+  }
+);
+</script>
+
+<style>
+body {
+  font-family: "Inter", Roboto, Arial, sans-serif;
+  background: #f9fafb;
+  color: #111827;
+  padding: 16px;
+}
+h1 {
+  font-size: 20px;
+  margin-bottom: 12px;
+  color: #1f2937;
+}
+#totalCurrentEarnings {
+  font-size: 18px;
+  margin-bottom: 10px;
+  font-weight: bold;
+  color: #111827;
+}
+button {
+  background: #2563eb;
+  color: white;
+  border: none;
+  padding: 6px 12px;
+  border-radius: 6px;
+  cursor: pointer;
+  font-size: 13px;
+  margin-bottom: 16px;
+}
+button:hover { background: #1e40af; }
+table {
+  width: 100%;
+  border-collapse: collapse;
+  background: white;
+  box-shadow: 0 2px 6px rgba(0,0,0,0.05);
+  border-radius: 8px;
+  overflow: hidden;
+}
+thead {
+  background: #111827;
+  color: #fff;
+}
+th, td {
+  padding: 8px 10px;
+  text-align: left;
+  border-bottom: 1px solid #e5e7eb;
+  font-size: 13px;
+}
+tr:hover { background: #f3f4f6; }
+.alert-row { background: #fee2e2; color: #991b1b; font-weight: 600; }
+</style>
+</head>
+
+<body>
+  <h1>📊 MTurk Earnings Monitor – Live</h1>
+  <div id="totalCurrentEarnings">Current Earnings This Month: $0.00</div>
+  <button onclick="downloadCSV()">⬇️ Download CSV</button>
+
+  <table>
+    <thead>
+      <tr>
+        <th>Worker ID</th>
+        <th>User</th>
+        <th>Current ($)</th>
+        <th>Last Month ($)</th>
+        <th>Last Transfer ($)</th>
+        <th>Last Transfer Date</th>
+        <th>Next Transfer Date</th>
+        <th>Bank / Gift Card</th>
+        <th>IP</th>
+        <th>Alert</th>
+        <th>Timestamp</th>
+      </tr>
+    </thead>
+    <tbody id="tableBody"></tbody>
+  </table>
+</body>
+</html>
