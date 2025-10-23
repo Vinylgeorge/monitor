@@ -26,12 +26,15 @@ const db = getFirestore(app);
 // Utility: format number
 const fmt = n => isNaN(n) ? "" : Number(n).toFixed(2);
 
-// Global data cache
+// Global cache
 let tableData = [];
 
-// --- CSV export function ---
+// --- CSV Export ---
 function downloadCSV() {
-  if (!tableData.length) return alert("No data to export!");
+  if (!tableData.length) {
+    alert("No data to export!");
+    return;
+  }
 
   const headers = [
     "Worker ID","User","Current ($)","Last Month ($)",
@@ -61,23 +64,24 @@ function downloadCSV() {
   const url = URL.createObjectURL(blob);
   const a = document.createElement("a");
   a.href = url;
-  a.download = `MTurk_Earnings_${new Date().toISOString().split("T")[0]}.csv`;
+  const total = tableData.reduce((sum, d) => sum + (parseFloat(d.currentEarnings) || 0), 0);
+  a.download = `MTurk_Earnings_${new Date().toISOString().split("T")[0]}_$${fmt(total)}.csv`;
   document.body.appendChild(a);
   a.click();
   document.body.removeChild(a);
   URL.revokeObjectURL(url);
 }
 
-// --- Real-time snapshot listener ---
+// Expose globally so HTML button can access it
+window.downloadCSV = downloadCSV;
+
+// --- Realtime listener ---
 onSnapshot(
   query(collection(db, "earnings_logs"), orderBy("timestamp", "desc")),
   (snap) => {
     const tbody = document.querySelector("#tableBody");
     const totalElem = document.querySelector("#totalCurrentEarnings");
-    if (!tbody || !totalElem) {
-      console.error("❌ Required elements not found");
-      return;
-    }
+    if (!tbody || !totalElem) return;
 
     let html = "";
     let totalCurrent = 0;
@@ -85,21 +89,21 @@ onSnapshot(
 
     snap.forEach(doc => {
       const d = doc.data();
-
-      // Convert Firestore timestamp → readable local time
       let ts = "";
+
       if (d.timestamp?.seconds) {
         ts = new Date(d.timestamp.seconds * 1000)
           .toLocaleString("en-US", { timeZone: "Asia/Kolkata" });
       } else if (typeof d.timestamp === "string") {
         ts = d.timestamp;
       }
-      d.timestampStr = ts;
 
+      d.timestampStr = ts;
       const cur = parseFloat(d.currentEarnings) || 0;
       totalCurrent += cur;
 
       const isAlert = d.alert && d.alert !== "OK" && d.alert !== "✅ OK";
+
       html += `
         <tr class="${isAlert ? "alert-row" : ""}">
           <td>${d.workerId || ""}</td>
