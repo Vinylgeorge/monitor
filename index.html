@@ -2,14 +2,14 @@
 <html lang="en">
 <head>
 <meta charset="UTF-8">
-<title>🔎 MTurk Earnings Monitor</title>
+<title>🔎 MTurk Earnings Monitor + Ticket Alerts</title>
 <script type="module">
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
 import { 
   getFirestore, collection, query, orderBy, onSnapshot 
 } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
 
-// --- Firebase Config ---
+// --- Firebase Config (for earnings monitor) ---
 const firebaseConfig = {
   apiKey: "AIzaSyCCtBCAJvQCDj8MXb2w90qYUqRrENIIGIQ",
   authDomain: "mturk-monitordeep.firebaseapp.com",
@@ -63,19 +63,17 @@ function downloadCSV() {
   const blob = new Blob([csv], { type: "text/csv" });
   const url = URL.createObjectURL(blob);
   const a = document.createElement("a");
-  a.href = url;
   const total = tableData.reduce((sum, d) => sum + (parseFloat(d.currentEarnings) || 0), 0);
+  a.href = url;
   a.download = `MTurk_Earnings_${new Date().toISOString().split("T")[0]}_$${fmt(total)}.csv`;
   document.body.appendChild(a);
   a.click();
   document.body.removeChild(a);
   URL.revokeObjectURL(url);
 }
-
-// Expose globally so HTML button can access it
 window.downloadCSV = downloadCSV;
 
-// --- Realtime listener ---
+// --- Realtime Earnings listener ---
 onSnapshot(
   query(collection(db, "earnings_logs"), orderBy("timestamp", "desc")),
   (snap) => {
@@ -126,6 +124,58 @@ onSnapshot(
     tbody.innerHTML = html;
   }
 );
+
+// --- Ticket Alert Blink ---
+onSnapshot(collection(db, "support_tickets"), (snap) => {
+  const ticketBtn = document.getElementById("ticketAlert");
+  const openTickets = [];
+  snap.forEach(doc => {
+    const d = doc.data();
+    if (!d.status || d.status === "open") openTickets.push({ id: doc.id, ...d });
+  });
+
+  if (openTickets.length > 0) {
+    ticketBtn.classList.add("blink");
+    ticketBtn.textContent = `📩 ${openTickets.length} Ticket(s)`;
+    window.latestTickets = openTickets;
+  } else {
+    ticketBtn.classList.remove("blink");
+    ticketBtn.textContent = "📭 No Tickets";
+    window.latestTickets = [];
+  }
+});
+
+// --- Ticket Viewer Modal ---
+window.showTickets = function() {
+  const modal = document.getElementById("ticketModal");
+  const list = document.getElementById("ticketList");
+  list.innerHTML = "";
+
+  const tickets = window.latestTickets || [];
+  if (!tickets.length) {
+    list.innerHTML = "<p>No open tickets 🎉</p>";
+  } else {
+    tickets.sort((a,b)=>b.createdAt?.seconds - a.createdAt?.seconds);
+    tickets.forEach(t => {
+      const time = t.createdAt?.seconds ? 
+        new Date(t.createdAt.seconds * 1000).toLocaleString("en-US", { timeZone: "Asia/Kolkata" }) : "";
+      const files = (t.attachments||[]).map(f=>`<a href="${f}" target="_blank">📎</a>`).join(" ");
+      const audio = t.audioUrl ? `<a href="${t.audioUrl}" target="_blank">🎧</a>` : "";
+      const div = document.createElement("div");
+      div.className="ticket";
+      div.innerHTML = `
+        <b>${t.userId || "Unknown User"}</b><br>
+        <span>${t.subject || "(no title)"}</span><br>
+        <small>${t.description || ""}</small><br>
+        <small><i>${time}</i></small><br>
+        ${files} ${audio}
+        <hr>`;
+      list.appendChild(div);
+    });
+  }
+  modal.style.display="flex";
+};
+window.closeModal = function(){ document.getElementById("ticketModal").style.display="none"; };
 </script>
 
 <style>
@@ -135,10 +185,33 @@ body {
   color: #111827;
   padding: 16px;
 }
+header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 16px;
+}
 h1 {
-  font-size: 20px;
-  margin-bottom: 12px;
-  color: #1f2937;
+  font-size: 22px;
+  color: #111827;
+  margin: 0;
+}
+#ticketAlert {
+  background: #dc2626;
+  color: #fff;
+  font-weight: bold;
+  padding: 8px 14px;
+  border: none;
+  border-radius: 6px;
+  cursor: pointer;
+  font-size: 14px;
+}
+#ticketAlert.blink {
+  animation: blinkAnim 1s infinite;
+}
+@keyframes blinkAnim {
+  0%, 50%, 100% { background-color: #dc2626; color: #fff; }
+  25%, 75% { background-color: #fff; color: #dc2626; border: 2px solid #dc2626; }
 }
 #totalCurrentEarnings {
   font-size: 18px;
@@ -146,7 +219,7 @@ h1 {
   font-weight: bold;
   color: #111827;
 }
-button {
+button.download {
   background: #2563eb;
   color: white;
   border: none;
@@ -156,7 +229,7 @@ button {
   font-size: 13px;
   margin-bottom: 16px;
 }
-button:hover { background: #1e40af; }
+button.download:hover { background: #1e40af; }
 table {
   width: 100%;
   border-collapse: collapse;
@@ -177,13 +250,63 @@ th, td {
 }
 tr:hover { background: #f3f4f6; }
 .alert-row { background: #fee2e2; color: #991b1b; font-weight: 600; }
+
+/* Ticket Modal */
+#ticketModal {
+  display: none;
+  position: fixed;
+  top: 0; left: 0;
+  width: 100%; height: 100%;
+  background: rgba(0,0,0,.6);
+  align-items: center; justify-content: center;
+  z-index: 9999;
+}
+.modal-content {
+  background: #fff;
+  border-radius: 10px;
+  padding: 20px;
+  width: 90%;
+  max-width: 500px;
+  max-height: 90vh;
+  overflow-y: auto;
+}
+.modal-content h2 {
+  margin-top: 0;
+  color: #dc2626;
+  text-align: center;
+}
+.ticket {
+  background: #fef2f2;
+  padding: 10px;
+  border-radius: 6px;
+  margin-bottom: 10px;
+  font-size: 13px;
+}
+.ticket hr {
+  border: none;
+  border-top: 1px solid #fee2e2;
+}
+.close-btn {
+  background: #111827;
+  color: #fff;
+  border: none;
+  border-radius: 4px;
+  padding: 6px 12px;
+  cursor: pointer;
+  display: block;
+  margin: 0 auto;
+}
 </style>
 </head>
 
 <body>
-  <h1>📊 MTurk Earnings Monitor – Live</h1>
+  <header>
+    <h1>📊 MTurk Earnings Monitor – Live</h1>
+    <button id="ticketAlert" onclick="showTickets()">📭 No Tickets</button>
+  </header>
+
   <div id="totalCurrentEarnings">Current Earnings This Month: $0.00</div>
-  <button onclick="downloadCSV()">⬇️ Download CSV</button>
+  <button class="download" onclick="downloadCSV()">⬇️ Download CSV</button>
 
   <table>
     <thead>
@@ -203,5 +326,14 @@ tr:hover { background: #f3f4f6; }
     </thead>
     <tbody id="tableBody"></tbody>
   </table>
+
+  <!-- Ticket Modal -->
+  <div id="ticketModal">
+    <div class="modal-content">
+      <h2>🧾 Open Support Tickets</h2>
+      <div id="ticketList"></div>
+      <button class="close-btn" onclick="closeModal()">Close</button>
+    </div>
+  </div>
 </body>
 </html>
