@@ -3,14 +3,15 @@
 <head>
 <meta charset="UTF-8">
 <title>🔎 MTurk Earnings Monitor + Ticket Alerts</title>
+
 <script type="module">
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
 import { 
   getFirestore, collection, query, orderBy, onSnapshot 
 } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
 
-// --- Firebase Config (for earnings monitor) ---
-const firebaseConfig = {
+// --- MAIN FIREBASE (for earnings monitor) ---
+const earningsCfg = {
   apiKey: "AIzaSyCCtBCAJvQCDj8MXb2w90qYUqRrENIIGIQ",
   authDomain: "mturk-monitordeep.firebaseapp.com",
   projectId: "mturk-monitordeep",
@@ -18,284 +19,131 @@ const firebaseConfig = {
   messagingSenderId: "58392297487",
   appId: "1:58392297487:web:1365ad12110ffd0586637a"
 };
+const appEarnings = initializeApp(earningsCfg, "earnings");
+const dbEarnings = getFirestore(appEarnings);
 
-// Initialize Firebase
-const app = initializeApp(firebaseConfig);
-const db = getFirestore(app);
+// --- SECOND FIREBASE (for support tickets from worker project) ---
+const ticketCfg = {
+  apiKey: "AIzaSyDIo2TPyxFs1BP_AaeQ6mMvqKXgQorQsS0",
+  authDomain: "taskmonitor-7bc94.firebaseapp.com",
+  projectId: "taskmonitor-7bc94",
+  storageBucket: "taskmonitor-7bc94.firebasestorage.app",
+  messagingSenderId: "294318327155",
+  appId: "1:294318327155:web:e0fd12d1afac85f0bbb106"
+};
+const appTickets = initializeApp(ticketCfg, "tickets");
+const dbTickets = getFirestore(appTickets);
 
-// Utility: format number
+// Utility
 const fmt = n => isNaN(n) ? "" : Number(n).toFixed(2);
-
-// Global cache
 let tableData = [];
 
 // --- CSV Export ---
-function downloadCSV() {
-  if (!tableData.length) {
-    alert("No data to export!");
-    return;
-  }
-
-  const headers = [
-    "Worker ID","User","Current ($)","Last Month ($)",
-    "Last Transfer ($)","Last Transfer Date",
-    "Next Transfer Date","Bank / Gift Card","IP","Alert","Timestamp"
-  ];
-
-  const rows = tableData.map(d => [
-    d.workerId || "",
-    d.user || "",
-    fmt(d.currentEarnings),
-    fmt(d.lastMonthEarnings),
-    fmt(d.lastTransferAmount),
-    d.lastTransferDate || "",
-    d.nextTransferDate || "",
-    d.bankAccount || "",
-    d.ip || "",
-    d.alert || "",
-    d.timestampStr || ""
-  ]);
-
-  const csv = [headers, ...rows]
-    .map(r => r.map(x => `"${String(x).replace(/"/g,'""')}"`).join(","))
-    .join("\n");
-
-  const blob = new Blob([csv], { type: "text/csv" });
-  const url = URL.createObjectURL(blob);
-  const a = document.createElement("a");
-  const total = tableData.reduce((sum, d) => sum + (parseFloat(d.currentEarnings) || 0), 0);
-  a.href = url;
-  a.download = `MTurk_Earnings_${new Date().toISOString().split("T")[0]}_$${fmt(total)}.csv`;
-  document.body.appendChild(a);
-  a.click();
-  document.body.removeChild(a);
-  URL.revokeObjectURL(url);
+function downloadCSV(){
+  if(!tableData.length){alert("No data to export!");return;}
+  const headers=["Worker ID","User","Current ($)","Last Month ($)","Last Transfer ($)","Last Transfer Date","Next Transfer Date","Bank / Gift Card","IP","Alert","Timestamp"];
+  const rows=tableData.map(d=>[d.workerId||"",d.user||"",fmt(d.currentEarnings),fmt(d.lastMonthEarnings),fmt(d.lastTransferAmount),d.lastTransferDate||"",d.nextTransferDate||"",d.bankAccount||"",d.ip||"",d.alert||"",d.timestampStr||""]);
+  const csv=[headers,...rows].map(r=>r.map(x=>`"${String(x).replace(/"/g,'""')}"`).join(",")).join("\n");
+  const blob=new Blob([csv],{type:"text/csv"});const url=URL.createObjectURL(blob);
+  const a=document.createElement("a");
+  const total=tableData.reduce((s,d)=>s+(parseFloat(d.currentEarnings)||0),0);
+  a.href=url;a.download=`Earnings_${new Date().toISOString().split("T")[0]}_$${fmt(total)}.csv`;
+  document.body.appendChild(a);a.click();document.body.removeChild(a);URL.revokeObjectURL(url);
 }
-window.downloadCSV = downloadCSV;
+window.downloadCSV=downloadCSV;
 
-// --- Realtime Earnings listener ---
-onSnapshot(
-  query(collection(db, "earnings_logs"), orderBy("timestamp", "desc")),
-  (snap) => {
-    const tbody = document.querySelector("#tableBody");
-    const totalElem = document.querySelector("#totalCurrentEarnings");
-    if (!tbody || !totalElem) return;
-
-    let html = "";
-    let totalCurrent = 0;
-    tableData = [];
-
-    snap.forEach(doc => {
-      const d = doc.data();
-      let ts = "";
-
-      if (d.timestamp?.seconds) {
-        ts = new Date(d.timestamp.seconds * 1000)
-          .toLocaleString("en-US", { timeZone: "Asia/Kolkata" });
-      } else if (typeof d.timestamp === "string") {
-        ts = d.timestamp;
-      }
-
-      d.timestampStr = ts;
-      const cur = parseFloat(d.currentEarnings) || 0;
-      totalCurrent += cur;
-
-      const isAlert = d.alert && d.alert !== "OK" && d.alert !== "✅ OK";
-
-      html += `
-        <tr class="${isAlert ? "alert-row" : ""}">
-          <td>${d.workerId || ""}</td>
-          <td>${d.user || ""}</td>
-          <td>${fmt(d.currentEarnings)}</td>
-          <td>${fmt(d.lastMonthEarnings)}</td>
-          <td>${fmt(d.lastTransferAmount)}</td>
-          <td>${d.lastTransferDate || ""}</td>
-          <td>${d.nextTransferDate || ""}</td>
-          <td>${d.bankAccount || ""}</td>
-          <td>${d.ip || ""}</td>
-          <td>${d.alert || ""}</td>
-          <td>${ts}</td>
-        </tr>`;
-
-      tableData.push(d);
-    });
-
-    totalElem.textContent = `Current Earnings This Month: $${fmt(totalCurrent)}`;
-    tbody.innerHTML = html;
-  }
-);
-
-// --- Ticket Alert Blink ---
-onSnapshot(collection(db, "support_tickets"), (snap) => {
-  const ticketBtn = document.getElementById("ticketAlert");
-  const openTickets = [];
-  snap.forEach(doc => {
-    const d = doc.data();
-    if (!d.status || d.status === "open") openTickets.push({ id: doc.id, ...d });
+// === Earnings listener ===
+onSnapshot(query(collection(dbEarnings,"earnings_logs"),orderBy("timestamp","desc")),(snap)=>{
+  const tbody=document.querySelector("#tableBody");
+  const totalElem=document.querySelector("#totalCurrentEarnings");
+  if(!tbody)return;
+  tableData=[];let html="";let total=0;
+  snap.forEach(doc=>{
+    const d=doc.data();
+    const ts=d.timestamp?.seconds?new Date(d.timestamp.seconds*1000).toLocaleString("en-US",{timeZone:"Asia/Kolkata"}):"";
+    d.timestampStr=ts;
+    const cur=parseFloat(d.currentEarnings)||0;total+=cur;
+    const isAlert=d.alert&&d.alert!=="OK"&&d.alert!=="✅ OK";
+    html+=`<tr class="${isAlert?"alert-row":""}">
+      <td>${d.workerId||""}</td><td>${d.user||""}</td>
+      <td>${fmt(d.currentEarnings)}</td><td>${fmt(d.lastMonthEarnings)}</td>
+      <td>${fmt(d.lastTransferAmount)}</td><td>${d.lastTransferDate||""}</td>
+      <td>${d.nextTransferDate||""}</td><td>${d.bankAccount||""}</td>
+      <td>${d.ip||""}</td><td>${d.alert||""}</td><td>${ts}</td></tr>`;
+    tableData.push(d);
   });
+  totalElem.textContent=`Current Earnings This Month: $${fmt(total)}`;
+  tbody.innerHTML=html;
+});
 
-  if (openTickets.length > 0) {
+// === Tickets listener (from worker project) ===
+onSnapshot(collection(dbTickets,"support_tickets"),(snap)=>{
+  const ticketBtn=document.getElementById("ticketAlert");
+  const open=[];
+  snap.forEach(doc=>{
+    const d=doc.data();
+    if(!d.status||d.status==="open")open.push({id:doc.id,...d});
+  });
+  if(open.length>0){
     ticketBtn.classList.add("blink");
-    ticketBtn.textContent = `📩 ${openTickets.length} Ticket(s)`;
-    window.latestTickets = openTickets;
-  } else {
+    ticketBtn.textContent=`📩 ${open.length} Ticket(s)`;
+    window.latestTickets=open;
+  }else{
     ticketBtn.classList.remove("blink");
-    ticketBtn.textContent = "📭 No Tickets";
-    window.latestTickets = [];
+    ticketBtn.textContent="📭 No Tickets";
+    window.latestTickets=[];
   }
 });
 
-// --- Ticket Viewer Modal ---
-window.showTickets = function() {
-  const modal = document.getElementById("ticketModal");
-  const list = document.getElementById("ticketList");
-  list.innerHTML = "";
-
-  const tickets = window.latestTickets || [];
-  if (!tickets.length) {
-    list.innerHTML = "<p>No open tickets 🎉</p>";
-  } else {
-    tickets.sort((a,b)=>b.createdAt?.seconds - a.createdAt?.seconds);
-    tickets.forEach(t => {
-      const time = t.createdAt?.seconds ? 
-        new Date(t.createdAt.seconds * 1000).toLocaleString("en-US", { timeZone: "Asia/Kolkata" }) : "";
-      const files = (t.attachments||[]).map(f=>`<a href="${f}" target="_blank">📎</a>`).join(" ");
-      const audio = t.audioUrl ? `<a href="${t.audioUrl}" target="_blank">🎧</a>` : "";
-      const div = document.createElement("div");
+window.showTickets=function(){
+  const modal=document.getElementById("ticketModal");
+  const list=document.getElementById("ticketList");
+  list.innerHTML="";
+  const tickets=window.latestTickets||[];
+  if(!tickets.length){list.innerHTML="<p>No open tickets 🎉</p>";}
+  else{
+    tickets.sort((a,b)=>b.createdAt?.seconds-a.createdAt?.seconds);
+    tickets.forEach(t=>{
+      const time=t.createdAt?.seconds?new Date(t.createdAt.seconds*1000).toLocaleString("en-US",{timeZone:"Asia/Kolkata"}):"";
+      const files=(t.attachments||[]).map(f=>`<a href="${f}" target="_blank">📎</a>`).join(" ");
+      const audio=t.audioUrl?`<a href="${t.audioUrl}" target="_blank">🎧</a>`:"";
+      const div=document.createElement("div");
       div.className="ticket";
-      div.innerHTML = `
-        <b>${t.userId || "Unknown User"}</b><br>
-        <span>${t.subject || "(no title)"}</span><br>
-        <small>${t.description || ""}</small><br>
-        <small><i>${time}</i></small><br>
-        ${files} ${audio}
-        <hr>`;
+      div.innerHTML=`<b>${t.userId||"Unknown"}</b><br><span>${t.subject||"(no title)"}</span><br>
+      <small>${t.description||""}</small><br><small><i>${time}</i></small><br>${files} ${audio}<hr>`;
       list.appendChild(div);
     });
   }
   modal.style.display="flex";
 };
-window.closeModal = function(){ document.getElementById("ticketModal").style.display="none"; };
+window.closeModal=function(){document.getElementById("ticketModal").style.display="none";};
 </script>
 
 <style>
-body {
-  font-family: "Inter", Roboto, Arial, sans-serif;
-  background: #f9fafb;
-  color: #111827;
-  padding: 16px;
+body{font-family:"Inter",Roboto,Arial,sans-serif;background:#f9fafb;color:#111827;padding:16px;}
+header{display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;}
+h1{font-size:22px;color:#111827;margin:0;}
+#ticketAlert{background:#dc2626;color:#fff;font-weight:bold;padding:8px 14px;border:none;border-radius:6px;cursor:pointer;font-size:14px;}
+#ticketAlert.blink{animation:blinkAnim 1s infinite;}
+@keyframes blinkAnim{
+  0%,50%,100%{background-color:#dc2626;color:#fff;}
+  25%,75%{background-color:#fff;color:#dc2626;border:2px solid #dc2626;}
 }
-header {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  margin-bottom: 16px;
-}
-h1 {
-  font-size: 22px;
-  color: #111827;
-  margin: 0;
-}
-#ticketAlert {
-  background: #dc2626;
-  color: #fff;
-  font-weight: bold;
-  padding: 8px 14px;
-  border: none;
-  border-radius: 6px;
-  cursor: pointer;
-  font-size: 14px;
-}
-#ticketAlert.blink {
-  animation: blinkAnim 1s infinite;
-}
-@keyframes blinkAnim {
-  0%, 50%, 100% { background-color: #dc2626; color: #fff; }
-  25%, 75% { background-color: #fff; color: #dc2626; border: 2px solid #dc2626; }
-}
-#totalCurrentEarnings {
-  font-size: 18px;
-  margin-bottom: 10px;
-  font-weight: bold;
-  color: #111827;
-}
-button.download {
-  background: #2563eb;
-  color: white;
-  border: none;
-  padding: 6px 12px;
-  border-radius: 6px;
-  cursor: pointer;
-  font-size: 13px;
-  margin-bottom: 16px;
-}
-button.download:hover { background: #1e40af; }
-table {
-  width: 100%;
-  border-collapse: collapse;
-  background: white;
-  box-shadow: 0 2px 6px rgba(0,0,0,0.05);
-  border-radius: 8px;
-  overflow: hidden;
-}
-thead {
-  background: #111827;
-  color: #fff;
-}
-th, td {
-  padding: 8px 10px;
-  text-align: left;
-  border-bottom: 1px solid #e5e7eb;
-  font-size: 13px;
-}
-tr:hover { background: #f3f4f6; }
-.alert-row { background: #fee2e2; color: #991b1b; font-weight: 600; }
-
+#totalCurrentEarnings{font-size:18px;margin-bottom:10px;font-weight:bold;}
+button.download{background:#2563eb;color:white;border:none;padding:6px 12px;border-radius:6px;cursor:pointer;font-size:13px;margin-bottom:16px;}
+button.download:hover{background:#1e40af;}
+table{width:100%;border-collapse:collapse;background:white;box-shadow:0 2px 6px rgba(0,0,0,0.05);border-radius:8px;overflow:hidden;}
+thead{background:#111827;color:#fff;}
+th,td{padding:8px 10px;text-align:left;border-bottom:1px solid #e5e7eb;font-size:13px;}
+tr:hover{background:#f3f4f6;}
+.alert-row{background:#fee2e2;color:#991b1b;font-weight:600;}
 /* Ticket Modal */
-#ticketModal {
-  display: none;
-  position: fixed;
-  top: 0; left: 0;
-  width: 100%; height: 100%;
-  background: rgba(0,0,0,.6);
-  align-items: center; justify-content: center;
-  z-index: 9999;
-}
-.modal-content {
-  background: #fff;
-  border-radius: 10px;
-  padding: 20px;
-  width: 90%;
-  max-width: 500px;
-  max-height: 90vh;
-  overflow-y: auto;
-}
-.modal-content h2 {
-  margin-top: 0;
-  color: #dc2626;
-  text-align: center;
-}
-.ticket {
-  background: #fef2f2;
-  padding: 10px;
-  border-radius: 6px;
-  margin-bottom: 10px;
-  font-size: 13px;
-}
-.ticket hr {
-  border: none;
-  border-top: 1px solid #fee2e2;
-}
-.close-btn {
-  background: #111827;
-  color: #fff;
-  border: none;
-  border-radius: 4px;
-  padding: 6px 12px;
-  cursor: pointer;
-  display: block;
-  margin: 0 auto;
-}
+#ticketModal{display:none;position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,.6);align-items:center;justify-content:center;z-index:9999;}
+.modal-content{background:#fff;border-radius:10px;padding:20px;width:90%;max-width:500px;max-height:90vh;overflow-y:auto;}
+.modal-content h2{margin-top:0;color:#dc2626;text-align:center;}
+.ticket{background:#fef2f2;padding:10px;border-radius:6px;margin-bottom:10px;font-size:13px;}
+.ticket hr{border:none;border-top:1px solid #fee2e2;}
+.close-btn{background:#111827;color:#fff;border:none;border-radius:4px;padding:6px 12px;cursor:pointer;display:block;margin:0 auto;}
 </style>
 </head>
 
@@ -311,23 +159,14 @@ tr:hover { background: #f3f4f6; }
   <table>
     <thead>
       <tr>
-        <th>Worker ID</th>
-        <th>User</th>
-        <th>Current ($)</th>
-        <th>Last Month ($)</th>
-        <th>Last Transfer ($)</th>
-        <th>Last Transfer Date</th>
-        <th>Next Transfer Date</th>
-        <th>Bank / Gift Card</th>
-        <th>IP</th>
-        <th>Alert</th>
-        <th>Timestamp</th>
+        <th>Worker ID</th><th>User</th><th>Current ($)</th><th>Last Month ($)</th>
+        <th>Last Transfer ($)</th><th>Last Transfer Date</th><th>Next Transfer Date</th>
+        <th>Bank / Gift Card</th><th>IP</th><th>Alert</th><th>Timestamp</th>
       </tr>
     </thead>
     <tbody id="tableBody"></tbody>
   </table>
 
-  <!-- Ticket Modal -->
   <div id="ticketModal">
     <div class="modal-content">
       <h2>🧾 Open Support Tickets</h2>
