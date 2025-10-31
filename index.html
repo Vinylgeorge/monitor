@@ -2,213 +2,69 @@
 <html lang="en">
 <head>
 <meta charset="UTF-8">
-<title>🔎 MTurk Earnings Monitor + Ticket Alerts</title>
+<title>📊 AB2soft Admin Dashboard</title>
+<style>
+  body{font-family:"Segoe UI",sans-serif;background:#f8fafc;color:#111827;padding:20px;}
+  h1{text-align:center;color:#0f62fe;margin-bottom:12px;}
+  section{background:white;border-radius:8px;box-shadow:0 2px 6px rgba(0,0,0,0.1);padding:16px;margin-bottom:24px;}
+  table{width:100%;border-collapse:collapse;}
+  th,td{padding:8px 10px;border-bottom:1px solid #e5e7eb;text-align:left;}
+  th{background:#0f62fe;color:white;}
+  button.del{background:#dc2626;color:white;border:none;padding:4px 8px;border-radius:4px;cursor:pointer;}
+</style>
+</head>
+<body>
+<h1>📊 AB2soft Admin Panel</h1>
+
+<section>
+  <h2>💰 Earnings Report</h2>
+  <table id="earnings"><thead><tr><th>User</th><th>Worker ID</th><th>Current Month</th><th>Last Month</th><th>Last Transfer</th><th>Next Transfer</th><th>Timestamp</th></tr></thead><tbody></tbody></table>
+</section>
+
+<section>
+  <h2>🎫 Support Tickets</h2>
+  <table id="tickets"><thead><tr><th>User ID</th><th>Subject</th><th>Description</th><th>Attachments</th><th>Audio</th><th>Delete</th></tr></thead><tbody></tbody></table>
+</section>
 
 <script type="module">
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
-import { 
-  getFirestore, collection, query, orderBy, onSnapshot, doc, deleteDoc 
-} from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
+import { getFirestore, collection, onSnapshot, deleteDoc, doc } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
 
-// === FIREBASE CONFIGS ===
-// Earnings (admin main project)
-const earningsCfg = {
-  apiKey: "AIzaSyCCtBCAJvQCDj8MXb2w90qYUqRrENIIGIQ",
+const firebaseConfig = {
+  apiKey: "AIzaSyBTFpM3fs7kWBrZL4yOi9tquUTp1HhH7L8",
   authDomain: "mturk-monitordeep.firebaseapp.com",
   projectId: "mturk-monitordeep",
   storageBucket: "mturk-monitordeep.firebasestorage.app",
-  messagingSenderId: "58392297487",
-  appId: "1:58392297487:web:1365ad12110ffd0586637a"
+  messagingSenderId: "505786000194",
+  appId: "1:505786000194:web:40b9c9df75d3125f3a99cd"
 };
-const appEarnings = initializeApp(earningsCfg, "earnings");
-const dbEarnings = getFirestore(appEarnings);
 
-// Tickets (from worker project)
-const ticketCfg = {
-  apiKey: "AIzaSyDIo2TPyxFs1BP_AaeQ6mMvqKXgQorQsS0",
-  authDomain: "taskmonitor-7bc94.firebaseapp.com",
-  projectId: "taskmonitor-7bc94",
-  storageBucket: "taskmonitor-7bc94.firebasestorage.app",
-  messagingSenderId: "294318327155",
-  appId: "1:294318327155:web:e0fd12d1afac85f0bbb106"
-};
-const appTickets = initializeApp(ticketCfg, "tickets");
-const dbTickets = getFirestore(appTickets);
+const app = initializeApp(firebaseConfig);
+const db = getFirestore(app);
 
-// === UTIL ===
-const fmt = n => isNaN(n) ? "" : Number(n).toFixed(2);
-let tableData = [];
-
-// === CSV EXPORT ===
-function downloadCSV() {
-  if (!tableData.length) return alert("No data to export!");
-
-  const headers = [
-    "Worker ID","User","Current ($)","Last Month ($)",
-    "Last Transfer ($)","Last Transfer Date","Next Transfer Date",
-    "Bank / Gift Card","IP","Alert","Timestamp"
-  ];
-
-  const rows = tableData.map(d => [
-    d.workerId || "", d.user || "", fmt(d.currentEarnings),
-    fmt(d.lastMonthEarnings), fmt(d.lastTransferAmount),
-    d.lastTransferDate || "", d.nextTransferDate || "",
-    d.bankAccount || "", d.ip || "", d.alert || "", d.timestampStr || ""
-  ]);
-
-  const csv = [headers, ...rows].map(r => r.map(x => `"${String(x).replace(/"/g,'""')}"`).join(",")).join("\n");
-  const blob = new Blob([csv], { type: "text/csv" });
-  const url = URL.createObjectURL(blob);
-  const a = document.createElement("a");
-  const total = tableData.reduce((sum, d) => sum + (parseFloat(d.currentEarnings) || 0), 0);
-  a.href = url;
-  a.download = `Earnings_${new Date().toISOString().split("T")[0]}_$${fmt(total)}.csv`;
-  document.body.appendChild(a);
-  a.click();
-  document.body.removeChild(a);
-  URL.revokeObjectURL(url);
-}
-window.downloadCSV = downloadCSV;
-
-// === EARNINGS LISTENER ===
-onSnapshot(query(collection(dbEarnings,"earnings_logs"),orderBy("timestamp","desc")),(snap)=>{
-  const tbody=document.querySelector("#tableBody");
-  const totalElem=document.querySelector("#totalCurrentEarnings");
-  if(!tbody)return;
-  tableData=[];let html="";let total=0;
+// Earnings
+onSnapshot(collection(db,"earnings_logs"),(snap)=>{
+  const tbody=document.querySelector("#earnings tbody");tbody.innerHTML="";
   snap.forEach(doc=>{
     const d=doc.data();
-    const ts=d.timestamp?.seconds?new Date(d.timestamp.seconds*1000).toLocaleString("en-US",{timeZone:"Asia/Kolkata"}):"";
-    d.timestampStr=ts;
-    const cur=parseFloat(d.currentEarnings)||0;total+=cur;
-    const isAlert=d.alert&&d.alert!=="OK"&&d.alert!=="✅ OK";
-    html+=`<tr class="${isAlert?"alert-row":""}">
-      <td>${d.workerId||""}</td><td>${d.user||""}</td>
-      <td>${fmt(d.currentEarnings)}</td><td>${fmt(d.lastMonthEarnings)}</td>
-      <td>${fmt(d.lastTransferAmount)}</td><td>${d.lastTransferDate||""}</td>
-      <td>${d.nextTransferDate||""}</td><td>${d.bankAccount||""}</td>
-      <td>${d.ip||""}</td><td>${d.alert||""}</td><td>${ts}</td></tr>`;
-    tableData.push(d);
+    const ts=d.timestamp?.seconds?new Date(d.timestamp.seconds*1000).toLocaleString():"";
+    tbody.innerHTML+=`<tr><td>${d.user||""}</td><td>${d.workerId||""}</td><td>${d.currentEarnings||""}</td><td>${d.lastMonthEarnings||""}</td><td>${d.lastTransferAmount||""}</td><td>${d.nextTransferDate||""}</td><td>${ts}</td></tr>`;
   });
-  totalElem.textContent=`Current Earnings This Month: $${fmt(total)}`;
-  tbody.innerHTML=html;
 });
 
-// === SUPPORT TICKETS LISTENER ===
-onSnapshot(collection(dbTickets,"support_tickets"),(snap)=>{
-  const ticketBtn=document.getElementById("ticketAlert");
-  const open=[];
-  snap.forEach(doc=>{
-    const d=doc.data();
-    if(!d.status||d.status==="open")open.push({id:doc.id,...d});
+// Tickets
+onSnapshot(collection(db,"support_tickets"),(snap)=>{
+  const tbody=document.querySelector("#tickets tbody");tbody.innerHTML="";
+  snap.forEach(docSnap=>{
+    const d=docSnap.data();
+    let imgs=(d.attachments||[]).map(u=>`<a href="${u}" target="_blank">📎</a>`).join(" ");
+    let aud=d.audioUrl?`<audio src="${d.audioUrl}" controls></audio>`:"";
+    tbody.innerHTML+=`<tr><td>${d.userId||""}</td><td>${d.subject||""}</td><td>${d.description||""}</td><td>${imgs}</td><td>${aud}</td><td><button class="del" data-id="${docSnap.id}">🗑</button></td></tr>`;
   });
-  if(open.length>0){
-    ticketBtn.classList.add("blink");
-    ticketBtn.textContent=`📩 ${open.length} Ticket(s)`;
-    window.latestTickets=open;
-  }else{
-    ticketBtn.classList.remove("blink");
-    ticketBtn.textContent="📭 No Tickets";
-    window.latestTickets=[];
-  }
+  document.querySelectorAll(".del").forEach(btn=>btn.onclick=async()=>{
+    if(confirm("Delete this ticket?"))await deleteDoc(doc(db,"support_tickets",btn.dataset.id));
+  });
 });
-
-// === DELETE TICKET ===
-async function deleteTicket(id){
-  if(!confirm("🗑 Delete this ticket permanently?")) return;
-  try{
-    await deleteDoc(doc(dbTickets,"support_tickets",id));
-    alert("✅ Ticket deleted successfully.");
-  }catch(e){
-    alert("❌ Failed to delete: "+e.message);
-  }
-}
-window.deleteTicket=deleteTicket;
-
-// === TICKET MODAL ===
-window.showTickets=function(){
-  const modal=document.getElementById("ticketModal");
-  const list=document.getElementById("ticketList");
-  list.innerHTML="";
-  const tickets=window.latestTickets||[];
-  if(!tickets.length){list.innerHTML="<p>No open tickets 🎉</p>";}
-  else{
-    tickets.sort((a,b)=>b.createdAt?.seconds-a.createdAt?.seconds);
-    tickets.forEach(t=>{
-      const time=t.createdAt?.seconds?new Date(t.createdAt.seconds*1000).toLocaleString("en-US",{timeZone:"Asia/Kolkata"}):"";
-      const files=(t.attachments||[]).map(f=>`<a href="${f}" target="_blank">📎</a>`).join(" ");
-      const audio=t.audioUrl?`<a href="${t.audioUrl}" target="_blank">🎧</a>`:"";
-      const div=document.createElement("div");
-      div.className="ticket";
-      div.innerHTML=`
-        <b>${t.userId||"Unknown"}</b><br>
-        <span>${t.subject||"(no title)"}</span><br>
-        <small>${t.description||""}</small><br>
-        <small><i>${time}</i></small><br>
-        ${files} ${audio}
-        <button class="del" onclick="deleteTicket('${t.id}')">🗑 Delete</button>
-        <hr>`;
-      list.appendChild(div);
-    });
-  }
-  modal.style.display="flex";
-};
-window.closeModal=function(){document.getElementById("ticketModal").style.display="none";};
 </script>
-
-<style>
-body{font-family:"Inter",Roboto,Arial,sans-serif;background:#f9fafb;color:#111827;padding:16px;}
-header{display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;}
-h1{font-size:22px;color:#111827;margin:0;}
-#ticketAlert{background:#dc2626;color:#fff;font-weight:bold;padding:8px 14px;border:none;border-radius:6px;cursor:pointer;font-size:14px;}
-#ticketAlert.blink{animation:blinkAnim 1s infinite;}
-@keyframes blinkAnim{0%,50%,100%{background:#dc2626;color:#fff;}25%,75%{background:#fff;color:#dc2626;border:2px solid #dc2626;}}
-#totalCurrentEarnings{font-size:18px;margin-bottom:10px;font-weight:bold;}
-button.download{background:#2563eb;color:white;border:none;padding:6px 12px;border-radius:6px;cursor:pointer;font-size:13px;margin-bottom:16px;}
-button.download:hover{background:#1e40af;}
-table{width:100%;border-collapse:collapse;background:white;box-shadow:0 2px 6px rgba(0,0,0,0.05);border-radius:8px;overflow:hidden;}
-thead{background:#111827;color:#fff;}
-th,td{padding:8px 10px;text-align:left;border-bottom:1px solid #e5e7eb;font-size:13px;}
-tr:hover{background:#f3f4f6;}
-.alert-row{background:#fee2e2;color:#991b1b;font-weight:600;}
-/* Ticket Modal */
-#ticketModal{display:none;position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,.6);align-items:center;justify-content:center;z-index:9999;}
-.modal-content{background:#fff;border-radius:10px;padding:20px;width:90%;max-width:500px;max-height:90vh;overflow-y:auto;}
-.modal-content h2{margin-top:0;color:#dc2626;text-align:center;}
-.ticket{background:#fef2f2;padding:10px;border-radius:6px;margin-bottom:10px;font-size:13px;}
-.ticket hr{border:none;border-top:1px solid #fee2e2;}
-.del{background:#991b1b;color:#fff;border:none;border-radius:4px;padding:4px 8px;cursor:pointer;margin-top:5px;font-size:12px;}
-.del:hover{background:#7f1d1d;}
-.close-btn{background:#111827;color:#fff;border:none;border-radius:4px;padding:6px 12px;cursor:pointer;display:block;margin:0 auto;}
-</style>
-</head>
-
-<body>
-  <header>
-    <h1>📊 MTurk Earnings Monitor – Live</h1>
-    <button id="ticketAlert" onclick="showTickets()">📭 No Tickets</button>
-  </header>
-
-  <div id="totalCurrentEarnings">Current Earnings This Month: $0.00</div>
-  <button class="download" onclick="downloadCSV()">⬇️ Download CSV</button>
-
-  <table>
-    <thead>
-      <tr>
-        <th>Worker ID</th><th>User</th><th>Current ($)</th><th>Last Month ($)</th>
-        <th>Last Transfer ($)</th><th>Last Transfer Date</th><th>Next Transfer Date</th>
-        <th>Bank / Gift Card</th><th>IP</th><th>Alert</th><th>Timestamp</th>
-      </tr>
-    </thead>
-    <tbody id="tableBody"></tbody>
-  </table>
-
-  <div id="ticketModal">
-    <div class="modal-content">
-      <h2>🧾 Open Support Tickets</h2>
-      <div id="ticketList"></div>
-      <button class="close-btn" onclick="closeModal()">Close</button>
-    </div>
-  </div>
 </body>
 </html>
