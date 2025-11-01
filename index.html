@@ -22,6 +22,12 @@
     padding: 16px;
     margin-bottom: 24px;
   }
+  #totalEarnings {
+    font-size: 18px;
+    font-weight: bold;
+    color: #15803d;
+    margin-bottom: 10px;
+  }
   table {
     width: 100%;
     border-collapse: collapse;
@@ -35,9 +41,7 @@
     background: #0f62fe;
     color: white;
   }
-  tr:hover {
-    background: #f1f5f9;
-  }
+  tr:hover { background: #f1f5f9; }
   button {
     border: none;
     cursor: pointer;
@@ -61,6 +65,7 @@
 <!-- EARNINGS REPORT -->
 <section>
   <h2>💰 Earnings Report</h2>
+  <div id="totalEarnings">Total Current Earnings: $0.00</div>
   <button class="download" onclick="downloadData('csv')">⬇️ Download CSV</button>
   <button class="download" onclick="downloadData('xlsx')">⬇️ Download Excel</button>
   <table id="earnings">
@@ -122,15 +127,25 @@ const db = getFirestore(app);
 // 💰 Earnings Logs
 // ----------------------------
 let tableData = [];
+
 onSnapshot(collection(db, "earnings_logs"), (snap) => {
   const tbody = document.querySelector("#earnings tbody");
+  const totalElem = document.querySelector("#totalEarnings");
   tbody.innerHTML = "";
   tableData = [];
+  let total = 0;
+
   snap.forEach(docSnap => {
     const d = docSnap.data();
     const ts = d.timestamp?.seconds
-      ? new Date(d.timestamp.seconds * 1000).toLocaleString("en-IN", { timeZone: "Asia/Kolkata" })
+      ? new Date(d.timestamp.seconds * 1000).toLocaleString("en-IN", {
+          timeZone: "Asia/Kolkata",
+          hour12: true
+        })
       : "";
+    const cur = parseFloat(d.currentEarnings) || 0;
+    total += cur;
+
     const row = {
       user: d.user || "",
       workerId: d.workerId || "",
@@ -145,6 +160,7 @@ onSnapshot(collection(db, "earnings_logs"), (snap) => {
       timestamp: ts
     };
     tableData.push(row);
+
     tbody.innerHTML += `
       <tr>
         <td>${row.user}</td>
@@ -160,32 +176,40 @@ onSnapshot(collection(db, "earnings_logs"), (snap) => {
         <td>${row.timestamp}</td>
       </tr>`;
   });
+
+  totalElem.textContent = `Total Current Earnings: $${total.toFixed(2)}`;
 });
 
 // ----------------------------
 // 🎫 Support Tickets
 // ----------------------------
-onSnapshot(collection(db,"support_tickets"),(snap)=>{
-  const tbody=document.querySelector("#tickets tbody");
-  tbody.innerHTML="";
-  snap.forEach(docSnap=>{
-    const d=docSnap.data();
-    let imgs=(d.attachments||[]).map(u=>`<a href="${u}" target="_blank">📎</a>`).join(" ");
-    let aud=d.audioUrl?`<audio src="${d.audioUrl}" controls></audio>`:"";
-    tbody.innerHTML+=`
+onSnapshot(collection(db, "support_tickets"), (snap) => {
+  const tbody = document.querySelector("#tickets tbody");
+  tbody.innerHTML = "";
+  snap.forEach(docSnap => {
+    const d = docSnap.data();
+    const imgs = (d.attachments || [])
+      .map(u => `<a href="${u}" target="_blank">📎</a>`)
+      .join(" ");
+    const aud = d.audioUrl
+      ? `<audio src="${d.audioUrl}" controls></audio>`
+      : "";
+    tbody.innerHTML += `
       <tr>
-        <td>${d.userId||""}</td>
-        <td>${d.subject||""}</td>
-        <td>${d.description||""}</td>
+        <td>${d.userId || ""}</td>
+        <td>${d.subject || ""}</td>
+        <td>${d.description || ""}</td>
         <td>${imgs}</td>
         <td>${aud}</td>
         <td><button class="del" data-id="${docSnap.id}">🗑</button></td>
       </tr>`;
   });
-  document.querySelectorAll(".del").forEach(btn=>{
-    btn.onclick=async()=>{
-      if(confirm("Delete this ticket?"))
-        await deleteDoc(doc(db,"support_tickets",btn.dataset.id));
+
+  document.querySelectorAll(".del").forEach(btn => {
+    btn.onclick = async () => {
+      if (confirm("Delete this ticket?")) {
+        await deleteDoc(doc(db, "support_tickets", btn.dataset.id));
+      }
     };
   });
 });
@@ -203,8 +227,6 @@ window.downloadData = (type) => {
     "Last Transfer ($)","Last Transfer Date","Next Transfer Date",
     "Bank","Alert","IP","Timestamp (IST)"
   ];
-
-  // Prepare rows
   const rows = tableData.map(d => [
     d.user,d.workerId,d.currentEarnings,d.lastMonthEarnings,
     d.lastTransferAmount,d.lastTransferDate,d.nextTransferDate,
@@ -217,14 +239,13 @@ window.downloadData = (type) => {
       .join("\n");
     const blob = new Blob([csv], { type: "text/csv" });
     const a = document.createElement("a");
-    const total = tableData.reduce((sum,d)=>sum+(parseFloat(d.currentEarnings)||0),0);
     a.href = URL.createObjectURL(blob);
-    a.download = `Earnings_${new Date().toISOString().split("T")[0]}_$${total.toFixed(2)}.csv`;
+    a.download = `Earnings_${new Date().toISOString().split("T")[0]}.csv`;
     document.body.appendChild(a);
     a.click();
     document.body.removeChild(a);
   } else if (type === "xlsx") {
-    import("https://cdn.sheetjs.com/xlsx-0.19.3/package/xlsx.mjs").then(XLSX=>{
+    import("https://cdn.sheetjs.com/xlsx-0.19.3/package/xlsx.mjs").then(XLSX => {
       const ws = XLSX.utils.aoa_to_sheet([headers, ...rows]);
       const wb = XLSX.utils.book_new();
       XLSX.utils.book_append_sheet(wb, ws, "Earnings");
