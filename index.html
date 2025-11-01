@@ -195,25 +195,26 @@ onSnapshot(collection(db, "earnings_logs"), (snap) => {
   totalElem.textContent = `Total Current Earnings: $${total.toFixed(2)}`;
 
   // 3️⃣ Render table
-  for (const row of tableData) {
-    const highlight = row.alert?.trim()
-      ? "style='background:#fff5f5;color:#b91c1c;font-weight:600;'"
-      : "";
-    tbody.innerHTML += `
-      <tr ${highlight}>
-        <td>${row.user}</td>
-        <td>${row.workerId}</td>
-        <td>${row.currentEarnings}</td>
-        <td>${row.lastMonthEarnings}</td>
-        <td>${row.lastTransferAmount}</td>
-        <td>${row.lastTransferDate}</td>
-        <td>${row.nextTransferDate}</td>
-        <td>${row.bankAccount}</td>
-        <td>${row.alert}</td>
-        <td>${row.ip}</td>
-        <td>${row.timestamp}</td>
-      </tr>`;
-  }
+ for (const row of tableData) {
+  const alertHTML = row.alert?.trim()
+    ? `<span style="color:#dc2626;font-weight:600;">${row.alert}</span>`
+    : `<span style="color:#16a34a;">✔ OK</span>`;  // Green “OK” if no alert
+
+  tbody.innerHTML += `
+    <tr>
+      <td>${row.user}</td>
+      <td>${row.workerId}</td>
+      <td>${row.currentEarnings}</td>
+      <td>${row.lastMonthEarnings}</td>
+      <td>${row.lastTransferAmount}</td>
+      <td>${row.lastTransferDate}</td>
+      <td>${row.nextTransferDate}</td>
+      <td>${row.bankAccount}</td>
+      <td>${alertHTML}</td>
+      <td>${row.ip}</td>
+      <td>${row.timestamp}</td>
+    </tr>`;
+}
 });
 
 
