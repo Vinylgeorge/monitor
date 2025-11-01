@@ -10,26 +10,59 @@
   table{width:100%;border-collapse:collapse;}
   th,td{padding:8px 10px;border-bottom:1px solid #e5e7eb;text-align:left;}
   th{background:#0f62fe;color:white;}
+  tr:hover{background:#f1f5f9;}
   button.del{background:#dc2626;color:white;border:none;padding:4px 8px;border-radius:4px;cursor:pointer;}
 </style>
 </head>
 <body>
 <h1>📊 AB2soft Admin Panel</h1>
 
+<!-- EARNINGS REPORT -->
 <section>
   <h2>💰 Earnings Report</h2>
-  <table id="earnings"><thead><tr><th>User</th><th>Worker ID</th><th>Current Month</th><th>Last Month</th><th>Last Transfer</th><th>Next Transfer</th><th>Timestamp</th></tr></thead><tbody></tbody></table>
+  <table id="earnings">
+    <thead>
+      <tr>
+        <th>User</th>
+        <th>Worker ID</th>
+        <th>Current Month</th>
+        <th>Last Month</th>
+        <th>Last Transfer ($)</th>
+        <th>Last Transfer Date</th>
+        <th>Next Transfer</th>
+        <th>Bank</th>
+        <th>Alert</th>
+        <th>IP</th>
+        <th>Timestamp</th>
+      </tr>
+    </thead>
+    <tbody></tbody>
+  </table>
 </section>
 
+<!-- SUPPORT TICKETS -->
 <section>
   <h2>🎫 Support Tickets</h2>
-  <table id="tickets"><thead><tr><th>User ID</th><th>Subject</th><th>Description</th><th>Attachments</th><th>Audio</th><th>Delete</th></tr></thead><tbody></tbody></table>
+  <table id="tickets">
+    <thead>
+      <tr>
+        <th>User ID</th>
+        <th>Subject</th>
+        <th>Description</th>
+        <th>Attachments</th>
+        <th>Audio</th>
+        <th>Delete</th>
+      </tr>
+    </thead>
+    <tbody></tbody>
+  </table>
 </section>
 
 <script type="module">
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
 import { getFirestore, collection, onSnapshot, deleteDoc, doc } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
 
+// --- Firebase Config for ADMIN (mturk-monitordeep) ---
 const firebaseConfig = {
   apiKey: "AIzaSyBTFpM3fs7kWBrZL4yOi9tquUTp1HhH7L8",
   authDomain: "mturk-monitordeep.firebaseapp.com",
@@ -42,27 +75,59 @@ const firebaseConfig = {
 const app = initializeApp(firebaseConfig);
 const db = getFirestore(app);
 
-// Earnings
+// ----------------------------
+// 💰 Earnings Logs
+// ----------------------------
 onSnapshot(collection(db,"earnings_logs"),(snap)=>{
-  const tbody=document.querySelector("#earnings tbody");tbody.innerHTML="";
-  snap.forEach(doc=>{
-    const d=doc.data();
-    const ts=d.timestamp?.seconds?new Date(d.timestamp.seconds*1000).toLocaleString():"";
-    tbody.innerHTML+=`<tr><td>${d.user||""}</td><td>${d.workerId||""}</td><td>${d.currentEarnings||""}</td><td>${d.lastMonthEarnings||""}</td><td>${d.lastTransferAmount||""}</td><td>${d.nextTransferDate||""}</td><td>${ts}</td></tr>`;
+  const tbody=document.querySelector("#earnings tbody");
+  tbody.innerHTML="";
+  snap.forEach(docSnap=>{
+    const d=docSnap.data();
+    const ts=d.timestamp?.seconds
+      ? new Date(d.timestamp.seconds*1000).toLocaleString("en-US",{timeZone:"Asia/Kolkata"})
+      : "";
+    tbody.innerHTML+=`
+      <tr>
+        <td>${d.user||""}</td>
+        <td>${d.workerId||""}</td>
+        <td>${d.currentEarnings||""}</td>
+        <td>${d.lastMonthEarnings||""}</td>
+        <td>${d.lastTransferAmount||""}</td>
+        <td>${d.lastTransferDate||""}</td>
+        <td>${d.nextTransferDate||""}</td>
+        <td>${d.bankAccount||""}</td>
+        <td>${d.alert||""}</td>
+        <td>${d.ip||""}</td>
+        <td>${ts}</td>
+      </tr>`;
   });
 });
 
-// Tickets
+// ----------------------------
+// 🎫 Support Tickets
+// ----------------------------
 onSnapshot(collection(db,"support_tickets"),(snap)=>{
-  const tbody=document.querySelector("#tickets tbody");tbody.innerHTML="";
+  const tbody=document.querySelector("#tickets tbody");
+  tbody.innerHTML="";
   snap.forEach(docSnap=>{
     const d=docSnap.data();
     let imgs=(d.attachments||[]).map(u=>`<a href="${u}" target="_blank">📎</a>`).join(" ");
     let aud=d.audioUrl?`<audio src="${d.audioUrl}" controls></audio>`:"";
-    tbody.innerHTML+=`<tr><td>${d.userId||""}</td><td>${d.subject||""}</td><td>${d.description||""}</td><td>${imgs}</td><td>${aud}</td><td><button class="del" data-id="${docSnap.id}">🗑</button></td></tr>`;
+    tbody.innerHTML+=`
+      <tr>
+        <td>${d.userId||""}</td>
+        <td>${d.subject||""}</td>
+        <td>${d.description||""}</td>
+        <td>${imgs}</td>
+        <td>${aud}</td>
+        <td><button class="del" data-id="${docSnap.id}">🗑</button></td>
+      </tr>`;
   });
-  document.querySelectorAll(".del").forEach(btn=>btn.onclick=async()=>{
-    if(confirm("Delete this ticket?"))await deleteDoc(doc(db,"support_tickets",btn.dataset.id));
+  document.querySelectorAll(".del").forEach(btn=>{
+    btn.onclick=async()=>{
+      if(confirm("Delete this ticket?"))
+        await deleteDoc(doc(db,"support_tickets",btn.dataset.id));
+    };
   });
 });
 </script>
