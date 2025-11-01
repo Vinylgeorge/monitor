@@ -4,14 +4,55 @@
 <meta charset="UTF-8">
 <title>📊 AB2soft Admin Dashboard</title>
 <style>
-  body{font-family:"Segoe UI",sans-serif;background:#f8fafc;color:#111827;padding:20px;}
-  h1{text-align:center;color:#0f62fe;margin-bottom:12px;}
-  section{background:white;border-radius:8px;box-shadow:0 2px 6px rgba(0,0,0,0.1);padding:16px;margin-bottom:24px;}
-  table{width:100%;border-collapse:collapse;}
-  th,td{padding:8px 10px;border-bottom:1px solid #e5e7eb;text-align:left;}
-  th{background:#0f62fe;color:white;}
-  tr:hover{background:#f1f5f9;}
-  button.del{background:#dc2626;color:white;border:none;padding:4px 8px;border-radius:4px;cursor:pointer;}
+  body {
+    font-family: "Segoe UI", sans-serif;
+    background: #f8fafc;
+    color: #111827;
+    padding: 20px;
+  }
+  h1 {
+    text-align: center;
+    color: #0f62fe;
+    margin-bottom: 20px;
+  }
+  section {
+    background: white;
+    border-radius: 8px;
+    box-shadow: 0 2px 6px rgba(0,0,0,0.1);
+    padding: 16px;
+    margin-bottom: 24px;
+  }
+  table {
+    width: 100%;
+    border-collapse: collapse;
+  }
+  th, td {
+    padding: 8px 10px;
+    border-bottom: 1px solid #e5e7eb;
+    text-align: left;
+  }
+  th {
+    background: #0f62fe;
+    color: white;
+  }
+  tr:hover {
+    background: #f1f5f9;
+  }
+  button {
+    border: none;
+    cursor: pointer;
+    border-radius: 4px;
+    padding: 6px 10px;
+    font-size: 13px;
+  }
+  .del { background: #dc2626; color: white; }
+  .del:hover { background: #b91c1c; }
+  .download {
+    background: #16a34a;
+    color: white;
+    margin-bottom: 10px;
+  }
+  .download:hover { background: #15803d; }
 </style>
 </head>
 <body>
@@ -20,6 +61,8 @@
 <!-- EARNINGS REPORT -->
 <section>
   <h2>💰 Earnings Report</h2>
+  <button class="download" onclick="downloadData('csv')">⬇️ Download CSV</button>
+  <button class="download" onclick="downloadData('xlsx')">⬇️ Download Excel</button>
   <table id="earnings">
     <thead>
       <tr>
@@ -33,7 +76,7 @@
         <th>Bank</th>
         <th>Alert</th>
         <th>IP</th>
-        <th>Timestamp</th>
+        <th>Timestamp (IST)</th>
       </tr>
     </thead>
     <tbody></tbody>
@@ -78,27 +121,43 @@ const db = getFirestore(app);
 // ----------------------------
 // 💰 Earnings Logs
 // ----------------------------
-onSnapshot(collection(db,"earnings_logs"),(snap)=>{
-  const tbody=document.querySelector("#earnings tbody");
-  tbody.innerHTML="";
-  snap.forEach(docSnap=>{
-    const d=docSnap.data();
-    const ts=d.timestamp?.seconds
-      ? new Date(d.timestamp.seconds*1000).toLocaleString("en-US",{timeZone:"Asia/Kolkata"})
+let tableData = [];
+onSnapshot(collection(db, "earnings_logs"), (snap) => {
+  const tbody = document.querySelector("#earnings tbody");
+  tbody.innerHTML = "";
+  tableData = [];
+  snap.forEach(docSnap => {
+    const d = docSnap.data();
+    const ts = d.timestamp?.seconds
+      ? new Date(d.timestamp.seconds * 1000).toLocaleString("en-IN", { timeZone: "Asia/Kolkata" })
       : "";
-    tbody.innerHTML+=`
+    const row = {
+      user: d.user || "",
+      workerId: d.workerId || "",
+      currentEarnings: d.currentEarnings || "",
+      lastMonthEarnings: d.lastMonthEarnings || "",
+      lastTransferAmount: d.lastTransferAmount || "",
+      lastTransferDate: d.lastTransferDate || "",
+      nextTransferDate: d.nextTransferDate || "",
+      bankAccount: d.bankAccount || "",
+      alert: d.alert || "",
+      ip: d.ip || "",
+      timestamp: ts
+    };
+    tableData.push(row);
+    tbody.innerHTML += `
       <tr>
-        <td>${d.user||""}</td>
-        <td>${d.workerId||""}</td>
-        <td>${d.currentEarnings||""}</td>
-        <td>${d.lastMonthEarnings||""}</td>
-        <td>${d.lastTransferAmount||""}</td>
-        <td>${d.lastTransferDate||""}</td>
-        <td>${d.nextTransferDate||""}</td>
-        <td>${d.bankAccount||""}</td>
-        <td>${d.alert||""}</td>
-        <td>${d.ip||""}</td>
-        <td>${ts}</td>
+        <td>${row.user}</td>
+        <td>${row.workerId}</td>
+        <td>${row.currentEarnings}</td>
+        <td>${row.lastMonthEarnings}</td>
+        <td>${row.lastTransferAmount}</td>
+        <td>${row.lastTransferDate}</td>
+        <td>${row.nextTransferDate}</td>
+        <td>${row.bankAccount}</td>
+        <td>${row.alert}</td>
+        <td>${row.ip}</td>
+        <td>${row.timestamp}</td>
       </tr>`;
   });
 });
@@ -130,6 +189,49 @@ onSnapshot(collection(db,"support_tickets"),(snap)=>{
     };
   });
 });
+
+// ----------------------------
+// 📥 Download Earnings as CSV or Excel
+// ----------------------------
+window.downloadData = (type) => {
+  if (!tableData.length) {
+    alert("No data to export!");
+    return;
+  }
+  const headers = [
+    "User","Worker ID","Current Month ($)","Last Month ($)",
+    "Last Transfer ($)","Last Transfer Date","Next Transfer Date",
+    "Bank","Alert","IP","Timestamp (IST)"
+  ];
+
+  // Prepare rows
+  const rows = tableData.map(d => [
+    d.user,d.workerId,d.currentEarnings,d.lastMonthEarnings,
+    d.lastTransferAmount,d.lastTransferDate,d.nextTransferDate,
+    d.bankAccount,d.alert,d.ip,d.timestamp
+  ]);
+
+  if (type === "csv") {
+    const csv = [headers, ...rows]
+      .map(r => r.map(x => `"${String(x).replace(/"/g,'""')}"`).join(","))
+      .join("\n");
+    const blob = new Blob([csv], { type: "text/csv" });
+    const a = document.createElement("a");
+    const total = tableData.reduce((sum,d)=>sum+(parseFloat(d.currentEarnings)||0),0);
+    a.href = URL.createObjectURL(blob);
+    a.download = `Earnings_${new Date().toISOString().split("T")[0]}_$${total.toFixed(2)}.csv`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+  } else if (type === "xlsx") {
+    import("https://cdn.sheetjs.com/xlsx-0.19.3/package/xlsx.mjs").then(XLSX=>{
+      const ws = XLSX.utils.aoa_to_sheet([headers, ...rows]);
+      const wb = XLSX.utils.book_new();
+      XLSX.utils.book_append_sheet(wb, ws, "Earnings");
+      XLSX.writeFile(wb, `Earnings_${new Date().toISOString().split("T")[0]}.xlsx`);
+    });
+  }
+};
 </script>
 </body>
 </html>
