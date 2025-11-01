@@ -124,32 +124,31 @@ const app = initializeApp(firebaseConfig);
 const db = getFirestore(app);
 
 // ----------------------------
-// 🕒 Helper: Parse Timestamp Safely
+// 🕒 Helper: Parse & Format Timestamp (with sorting support)
 // ----------------------------
-function formatIndianTime(t) {
+function getTimestampMillis(t) {
   try {
-    if (!t) return "—";
-    let date;
-    if (t.seconds) date = new Date(t.seconds * 1000);
-    else if (typeof t === "string") date = new Date(t);
-    else if (t.toDate) date = t.toDate();
-    else return "—";
-    if (isNaN(date)) return "—";
-    return date.toLocaleString("en-IN", {
-      timeZone: "Asia/Kolkata",
-      hour12: true,
-      day: "2-digit",
-      month: "2-digit",
-      year: "numeric",
-      hour: "2-digit",
-      minute: "2-digit",
-      second: "2-digit"
-    });
-  } catch { return "—"; }
+    if (!t) return 0;
+    if (t.seconds) return t.seconds * 1000;
+    if (t.toDate) return t.toDate().getTime();
+    if (typeof t === "string") return new Date(t).getTime();
+    return 0;
+  } catch { return 0; }
+}
+function formatIndianTime(t) {
+  const ms = getTimestampMillis(t);
+  if (!ms) return "—";
+  const date = new Date(ms);
+  return date.toLocaleString("en-IN", {
+    timeZone: "Asia/Kolkata",
+    hour12: true,
+    day: "2-digit", month: "2-digit", year: "numeric",
+    hour: "2-digit", minute: "2-digit", second: "2-digit"
+  });
 }
 
 // ----------------------------
-// 💰 Earnings Logs
+// 💰 Earnings Logs (Sorted)
 // ----------------------------
 let tableData = [];
 
@@ -158,15 +157,15 @@ onSnapshot(collection(db, "earnings_logs"), (snap) => {
   const totalElem = document.querySelector("#totalEarnings");
   tbody.innerHTML = "";
   tableData = [];
-  let total = 0;
 
   snap.forEach(docSnap => {
     const d = docSnap.data();
-    const ts = formatIndianTime(d.timestamp || d.createdAt || d.timestampStr);
+    const rawTs = d.timestamp || d.createdAt || d.timestampStr;
+    const tsStr = formatIndianTime(rawTs);
+    const tsMillis = getTimestampMillis(rawTs);
     const cur = parseFloat(d.currentEarnings) || 0;
-    total += cur;
 
-    const row = {
+    tableData.push({
       user: d.user || "",
       workerId: d.workerId || "",
       currentEarnings: d.currentEarnings || "",
@@ -177,10 +176,20 @@ onSnapshot(collection(db, "earnings_logs"), (snap) => {
       bankAccount: d.bankAccount || "",
       alert: d.alert || "",
       ip: d.ip || "",
-      timestamp: ts
-    };
-    tableData.push(row);
+      timestamp: tsStr,
+      tsMillis
+    });
+  });
 
+  // Sort newest → oldest
+  tableData.sort((a, b) => b.tsMillis - a.tsMillis);
+
+  // Compute total current earnings
+  const total = tableData.reduce((sum, d) => sum + (parseFloat(d.currentEarnings) || 0), 0);
+  totalElem.textContent = `Total Current Earnings: $${total.toFixed(2)}`;
+
+  // Render table
+  for (const row of tableData) {
     tbody.innerHTML += `
       <tr>
         <td>${row.user}</td>
@@ -195,9 +204,7 @@ onSnapshot(collection(db, "earnings_logs"), (snap) => {
         <td>${row.ip}</td>
         <td>${row.timestamp}</td>
       </tr>`;
-  });
-
-  totalElem.textContent = `Total Current Earnings: $${total.toFixed(2)}`;
+  }
 });
 
 // ----------------------------
@@ -211,9 +218,7 @@ onSnapshot(collection(db, "support_tickets"), (snap) => {
     const imgs = (d.attachments || [])
       .map(u => `<a href="${u}" target="_blank">📎</a>`)
       .join(" ");
-    const aud = d.audioUrl
-      ? `<audio src="${d.audioUrl}" controls></audio>`
-      : "";
+    const aud = d.audioUrl ? `<audio src="${d.audioUrl}" controls></audio>` : "";
     tbody.innerHTML += `
       <tr>
         <td>${d.userId || ""}</td>
@@ -227,15 +232,14 @@ onSnapshot(collection(db, "support_tickets"), (snap) => {
 
   document.querySelectorAll(".del").forEach(btn => {
     btn.onclick = async () => {
-      if (confirm("Delete this ticket?")) {
+      if (confirm("Delete this ticket?"))
         await deleteDoc(doc(db, "support_tickets", btn.dataset.id));
-      }
     };
   });
 });
 
 // ----------------------------
-// 📥 Download Earnings as CSV or Excel
+// 📥 CSV / Excel Export
 // ----------------------------
 window.downloadData = (type) => {
   if (!tableData.length) {
