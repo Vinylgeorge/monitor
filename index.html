@@ -1,5 +1,155 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>📊 AB2soft Admin Dashboard</title>
+<style>
+  body {
+    font-family: "Segoe UI", sans-serif;
+    background: #f8fafc;
+    color: #111827;
+    padding: 20px;
+  }
+  h1 {
+    text-align: center;
+    color: #0f62fe;
+    margin-bottom: 20px;
+  }
+  section {
+    background: white;
+    border-radius: 8px;
+    box-shadow: 0 2px 6px rgba(0,0,0,0.1);
+    padding: 16px;
+    margin-bottom: 24px;
+  }
+  #totalEarnings {
+    font-size: 18px;
+    font-weight: bold;
+    color: #15803d;
+    margin-bottom: 10px;
+  }
+  table {
+    width: 100%;
+    border-collapse: collapse;
+  }
+  th, td {
+    padding: 8px 10px;
+    border-bottom: 1px solid #e5e7eb;
+    text-align: left;
+  }
+  th {
+    background: #0f62fe;
+    color: white;
+  }
+  tr:hover { background: #f1f5f9; }
+  button {
+    border: none;
+    cursor: pointer;
+    border-radius: 4px;
+    padding: 6px 10px;
+    font-size: 13px;
+  }
+  .del { background: #dc2626; color: white; }
+  .del:hover { background: #b91c1c; }
+  .download {
+    background: #16a34a;
+    color: white;
+    margin-bottom: 10px;
+  }
+  .download:hover { background: #15803d; }
+</style>
+</head>
+<body>
+<h1>📊 AB2soft Admin Panel</h1>
+
+<!-- EARNINGS REPORT -->
+<section>
+  <h2>💰 Earnings Report</h2>
+  <div id="totalEarnings">Total Current Earnings: $0.00</div>
+  <button class="download" onclick="downloadData('csv')">⬇️ Download CSV</button>
+  <button class="download" onclick="downloadData('xlsx')">⬇️ Download Excel</button>
+  <table id="earnings">
+    <thead>
+      <tr>
+        <th>User</th>
+        <th>Worker ID</th>
+        <th>Current Month</th>
+        <th>Last Month</th>
+        <th>Last Transfer ($)</th>
+        <th>Last Transfer Date</th>
+        <th>Next Transfer</th>
+        <th>Bank</th>
+        <th>Alert</th>
+        <th>IP</th>
+        <th>Timestamp (IST)</th>
+      </tr>
+    </thead>
+    <tbody></tbody>
+  </table>
+</section>
+
+<!-- SUPPORT TICKETS -->
+<section>
+  <h2>🎫 Support Tickets</h2>
+  <table id="tickets">
+    <thead>
+      <tr>
+        <th>User ID</th>
+        <th>Subject</th>
+        <th>Description</th>
+        <th>Attachments</th>
+        <th>Audio</th>
+        <th>Delete</th>
+      </tr>
+    </thead>
+    <tbody></tbody>
+  </table>
+</section>
+
+<script type="module">
+import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
+import { getFirestore, collection, onSnapshot, deleteDoc, doc } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
+
+// --- Firebase Config for ADMIN (mturk-monitordeep) ---
+const firebaseConfig = {
+  apiKey: "AIzaSyBTFpM3fs7kWBrZL4yOi9tquUTp1HhH7L8",
+  authDomain: "mturk-monitordeep.firebaseapp.com",
+  projectId: "mturk-monitordeep",
+  storageBucket: "mturk-monitordeep.firebasestorage.app",
+  messagingSenderId: "505786000194",
+  appId: "1:505786000194:web:40b9c9df75d3125f3a99cd"
+};
+
+const app = initializeApp(firebaseConfig);
+const db = getFirestore(app);
+
 // ----------------------------
-// 💰 Earnings Logs (Alert priority + timestamp sort)
+// 🕒 Helper: Parse & Format Timestamp (with sorting support)
+// ----------------------------
+function getTimestampMillis(t) {
+  try {
+    if (!t) return 0;
+    if (t.seconds) return t.seconds * 1000;
+    if (t.toDate) return t.toDate().getTime();
+    if (typeof t === "string") return new Date(t).getTime();
+    return 0;
+  } catch { return 0; }
+}
+function formatIndianTime(t) {
+  const ms = getTimestampMillis(t);
+  if (!ms) return "—";
+  const date = new Date(ms);
+  return date.toLocaleString("en-IN", {
+    timeZone: "Asia/Kolkata",
+    hour12: true,
+    day: "2-digit", month: "2-digit", year: "numeric",
+    hour: "2-digit", minute: "2-digit", second: "2-digit"
+  });
+}
+
+
+// ----------------------------
+// 💰 Earnings Logs
 // ----------------------------
 let tableData = [];
 
@@ -65,3 +215,78 @@ onSnapshot(collection(db, "earnings_logs"), (snap) => {
       </tr>`;
   }
 });
+
+
+// ----------------------------
+// 🎫 Support Tickets
+// ----------------------------
+onSnapshot(collection(db, "support_tickets"), (snap) => {
+  const tbody = document.querySelector("#tickets tbody");
+  tbody.innerHTML = "";
+  snap.forEach(docSnap => {
+    const d = docSnap.data();
+    const imgs = (d.attachments || [])
+      .map(u => `<a href="${u}" target="_blank">📎</a>`)
+      .join(" ");
+    const aud = d.audioUrl ? `<audio src="${d.audioUrl}" controls></audio>` : "";
+    tbody.innerHTML += `
+      <tr>
+        <td>${d.userId || ""}</td>
+        <td>${d.subject || ""}</td>
+        <td>${d.description || ""}</td>
+        <td>${imgs}</td>
+        <td>${aud}</td>
+        <td><button class="del" data-id="${docSnap.id}">🗑</button></td>
+      </tr>`;
+  });
+
+  document.querySelectorAll(".del").forEach(btn => {
+    btn.onclick = async () => {
+      if (confirm("Delete this ticket?"))
+        await deleteDoc(doc(db, "support_tickets", btn.dataset.id));
+    };
+  });
+});
+
+// ----------------------------
+// 📥 CSV / Excel Export
+// ----------------------------
+window.downloadData = (type) => {
+  if (!tableData.length) {
+    alert("No data to export!");
+    return;
+  }
+  const headers = [
+    "User","Worker ID","Current Month ($)","Last Month ($)",
+    "Last Transfer ($)","Last Transfer Date","Next Transfer Date",
+    "Bank","Alert","IP","Timestamp (IST)"
+  ];
+  const rows = tableData.map(d => [
+    d.user,d.workerId,d.currentEarnings,d.lastMonthEarnings,
+    d.lastTransferAmount,d.lastTransferDate,d.nextTransferDate,
+    d.bankAccount,d.alert,d.ip,d.timestamp
+  ]);
+
+  if (type === "csv") {
+    const csv = [headers, ...rows]
+      .map(r => r.map(x => `"${String(x).replace(/"/g,'""')}"`).join(","))
+      .join("\n");
+    const blob = new Blob([csv], { type: "text/csv" });
+    const a = document.createElement("a");
+    a.href = URL.createObjectURL(blob);
+    a.download = `Earnings_${new Date().toISOString().split("T")[0]}.csv`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+  } else if (type === "xlsx") {
+    import("https://cdn.sheetjs.com/xlsx-0.19.3/package/xlsx.mjs").then(XLSX => {
+      const ws = XLSX.utils.aoa_to_sheet([headers, ...rows]);
+      const wb = XLSX.utils.book_new();
+      XLSX.utils.book_append_sheet(wb, ws, "Earnings");
+      XLSX.writeFile(wb, `Earnings_${new Date().toISOString().split("T")[0]}.xlsx`);
+    });
+  }
+};
+</script>
+</body>
+</html>
