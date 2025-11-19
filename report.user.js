@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         🔒 MTurk Earnings Report
 // @namespace    ab2soft.secure
-// @version      5.13
+// @version      5.15
 // @match        https://worker.mturk.com/earnings*
 // @grant        GM_getValue
 // @grant        GM_setValue
@@ -15,7 +15,7 @@
   // -------------------------
   const SHEET_CSV = 'https://docs.google.com/spreadsheets/d/1Ytmr7dHSAv69N27uZcrhKaEerL8WhzMCI02vugq_C_M/export?format=csv&gid=0';
   const FIREBASE_APP_JS = 'https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js';
-  const FIRESTORE_JS = 'https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js';
+  const FIRESTORE_JS   = 'https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js';
 
   const FIREBASE_CFG = {
     apiKey: "AIzaSyCCtBCAJvQCDj8MXb2w90qYUqRrENIIGIQ",
@@ -33,19 +33,26 @@
   // Helpers
   // -------------------------
   const sha256hex = async text => {
-    const enc = new TextEncoder().encode(text);
+    const enc  = new TextEncoder().encode(text);
     const hash = await crypto.subtle.digest('SHA-256', enc);
-    return Array.from(new Uint8Array(hash)).map(b => b.toString(16).padStart(2, '0')).join('');
+    return Array.from(new Uint8Array(hash))
+      .map(b => b.toString(16).padStart(2, '0'))
+      .join('');
   };
-  const $ = sel => document.querySelector(sel);
+  const $  = sel => document.querySelector(sel);
   const $$ = sel => Array.from(document.querySelectorAll(sel));
-  const safeJSONParse = s => { try { return JSON.parse(s.replace(/&quot;/g, '"')); } catch { return null; } };
+  const safeJSONParse = s => {
+    try { return JSON.parse(s.replace(/&quot;/g, '"')); }
+    catch { return null; }
+  };
 
   // -------------------------
   // Extractors
   // -------------------------
   function getWorkerId() {
-    const el = $$('[data-react-props]').find(e => e.getAttribute('data-react-props')?.includes('textToCopy'));
+    const el = $$('[data-react-props]').find(e =>
+      e.getAttribute('data-react-props')?.includes('textToCopy')
+    );
     if (el) {
       const j = safeJSONParse(el.getAttribute('data-react-props'));
       if (j?.textToCopy) return j.textToCopy.trim();
@@ -54,13 +61,16 @@
   }
 
   function extractNextTransferInfo() {
-    const strongTag = $$('strong').find(el => /transferred to your/i.test(el.textContent));
+    const strongTag = $$('strong').find(el =>
+      /transferred to your/i.test(el.textContent)
+    );
     let bankAccount = '', nextTransferDate = '';
 
     if (strongTag) {
       const bankLink =
         strongTag.querySelector("a[href*='direct_deposit']") ||
         strongTag.querySelector("a[href*='https://www.amazon.com/gp/css/gc/balance']");
+
       if (bankLink) {
         if (/amazon\.com/i.test(bankLink.href)) {
           bankAccount = 'Amazon Gift Card Balance';
@@ -80,10 +90,11 @@
 
   function computeLastMonthEarnings(bodyData) {
     if (!Array.isArray(bodyData)) return '0.00';
-    const now = new Date();
+
+    const now            = new Date();
     const startThisMonth = new Date(now.getFullYear(), now.getMonth(), 1);
     const startLastMonth = new Date(startThisMonth.getFullYear(), startThisMonth.getMonth() - 1, 1);
-    const endLastMonth = new Date(startThisMonth.getFullYear(), startThisMonth.getMonth(), 0);
+    const endLastMonth   = new Date(startThisMonth.getFullYear(), startThisMonth.getMonth(), 0);
     endLastMonth.setHours(23, 59, 59, 999);
 
     let total = 0;
@@ -112,30 +123,42 @@
 
     let lastTransferAmount = '', lastTransferDate = '', lastMonthEarnings = '0.00';
     try {
-      const el = $$('[data-react-class]').find(e => e.getAttribute('data-react-class')?.includes('TransferHistoryTable'));
+      const el = $$('[data-react-class]').find(e =>
+        e.getAttribute('data-react-class')?.includes('TransferHistoryTable')
+      );
       if (el) {
         const parsed = safeJSONParse(el.getAttribute('data-react-props'));
-        const body = parsed?.bodyData || [];
+        const body   = parsed?.bodyData || [];
         if (body.length > 0) {
           const last = body[0];
           lastTransferAmount = (last.amountRequested ?? '').toString();
-          lastTransferDate = last.requestedDate ?? '';
+          lastTransferDate   = last.requestedDate ?? '';
         }
         lastMonthEarnings = computeLastMonthEarnings(body);
       }
-    } catch (e) { }
-
-    const { bankAccount, nextTransferDate } = extractNextTransferInfo();
-    let ip = 'unknown';
-    try {
-      ip = (await fetch('https://api.ipify.org?format=json').then(r => r.json())).ip;
     } catch { }
 
-    return { workerId, userName, currentEarnings, lastTransferAmount, lastTransferDate, nextTransferDate, bankAccount, ip, lastMonthEarnings };
+    const { bankAccount, nextTransferDate } = extractNextTransferInfo();
+
+    let ip = 'unknown';
+    try { ip = (await fetch('https://api.ipify.org?format=json').then(r => r.json())).ip; }
+    catch {}
+
+    return {
+      workerId,
+      userName,
+      currentEarnings,
+      lastTransferAmount,
+      lastTransferDate,
+      nextTransferDate,
+      bankAccount,
+      ip,
+      lastMonthEarnings
+    };
   }
 
   // -------------------------
-  // Google Sheet → user map
+  // Sheet map
   // -------------------------
   async function loadSheetMap() {
     try {
@@ -152,11 +175,13 @@
         if (w && u) map[w] = u;
       }
       return map;
-    } catch { return {}; }
+    } catch {
+      return {};
+    }
   }
 
   // -------------------------
-  // One-time password per worker
+  // Password per worker
   // -------------------------
   async function ensurePassword(workerId) {
     const key = `verified_${workerId}`;
@@ -165,13 +190,13 @@
     const entered = prompt(`🔒 Enter password for WorkerID ${workerId}:`);
     if (!entered) throw new Error('no password');
     const h = await sha256hex(entered.trim());
-    if (h !== PASS_HASH_HEX) { alert('❌ Incorrect password'); throw new Error('bad password'); }
+    if (h !== PASS_HASH_HEX) {
+      alert('❌ Incorrect password');
+      throw new Error('bad password');
+    }
     await GM_setValue(key, true);
   }
 
-  // -------------------------
-  // Toast + redirect helper
-  // -------------------------
   function showToastAndRedirect(text = 'Redirecting to Tasks…', delay = 3000) {
     const note = document.createElement('div');
     note.textContent = text;
@@ -183,37 +208,26 @@
       color: '#fff',
       padding: '8px 12px',
       borderRadius: '8px',
-      fontFamily: 'Inter, Roboto, Arial, sans-serif',
+      fontFamily: 'Inter, Roboto, Arial',
       fontSize: '12px',
       zIndex: 999999
     });
     document.body.appendChild(note);
-    setTimeout(() => { location.assign('https://worker.mturk.com/tasks/'); }, delay);
+    setTimeout(() => location.assign('https://worker.mturk.com/tasks/'), delay);
   }
 
   // -------------------------
-  // Firebase setup
+  // Firebase Init
   // -------------------------
   const { initializeApp } = await import(FIREBASE_APP_JS);
   const { getFirestore, doc, getDoc, setDoc } = await import(FIRESTORE_JS);
   const app = initializeApp(FIREBASE_CFG);
-  const db = getFirestore(app);
+  const db  = getFirestore(app);
 
   // -------------------------
-  // Main
+  // MAIN
   // -------------------------
   const data = await extractData();
-
-  if (!data.lastTransferAmount && !data.lastTransferDate && !data.nextTransferDate && !data.bankAccount) {
-    if (!sessionStorage.getItem('earnings_blank_refresh')) {
-      sessionStorage.setItem('earnings_blank_refresh', '1');
-      console.warn('Blank data — refreshing once');
-      setTimeout(() => location.reload(), 1500);
-      return;
-    } else {
-      sessionStorage.removeItem('earnings_blank_refresh');
-    }
-  }
 
   if (!data.workerId) {
     showToastAndRedirect('⚠️ No Worker ID found — redirecting');
@@ -225,60 +239,74 @@
   const userMap = await loadSheetMap();
   data.user = userMap[data.workerId] || data.userName || 'Unknown';
 
-  const ref = doc(db, 'earnings_logs', data.workerId);
+  const ref      = doc(db, 'earnings_logs', data.workerId);
   const prevSnap = await getDoc(ref);
+
   let alert = '✅ OK';
 
+  // -------------------------------------
+  //     ✳️ IP UNKNOWN HANDLING RULE
+  // -------------------------------------
   if (prevSnap.exists()) {
     const p = prevSnap.data();
-    if (p.alert && String(p.alert).startsWith('⚠️')) { showToastAndRedirect('Locked alert — redirecting'); return; }
-    if (p.bankAccount && p.bankAccount !== data.bankAccount) alert = '⚠️ Bank Changed';
-    if (p.ip && p.ip !== data.ip) alert = '⚠️ IP Changed';
 
-    const keys = ['currentEarnings', 'lastTransferAmount', 'lastTransferDate', 'nextTransferDate', 'bankAccount', 'ip', 'lastMonthEarnings'];
+    // If new IP is unknown → KEEP OLD IP
+    if (data.ip === 'unknown') {
+      data.ip = p.ip || "";   // do not treat as change
+    }
+
+    if (p.bankAccount && p.bankAccount !== data.bankAccount)
+      alert = '⚠️ Bank Changed';
+
+    if (p.ip && p.ip !== data.ip)
+      alert = '⚠️ IP Changed';
+
+    const keys = [
+      'currentEarnings',
+      'lastTransferAmount',
+      'lastTransferDate',
+      'nextTransferDate',
+      'bankAccount',
+      'ip',
+      'lastMonthEarnings'
+    ];
     const changedKeys = keys.filter(k => (p[k] || '') !== (data[k] || ''));
-    const changed = changedKeys.length > 0;
-    const onlyNext = (changedKeys.length === 1 && changedKeys[0] === 'nextTransferDate');
+    const changed     = changedKeys.length > 0;
+    const onlyNext    = (changedKeys.length === 1 && changedKeys[0] === 'nextTransferDate');
 
     if (changed && !onlyNext) {
       if (!sessionStorage.getItem('earnings_mismatch_refresh')) {
         sessionStorage.setItem('earnings_mismatch_refresh', '1');
-        console.warn('Mismatch — refreshing once');
         setTimeout(() => location.reload(), 1500);
         return;
       } else {
         sessionStorage.removeItem('earnings_mismatch_refresh');
       }
     }
-
-    if (!changed && alert === p.alert) {
-      showToastAndRedirect('No change — redirecting');
-      return;
-    }
   }
 
-  if (alert.startsWith('⚠️')) {
-    try { new Audio('https://www.allbyjohn.com/sounds/mturkscanner/lessthan15Short.mp3').play(); } catch { }
-  }
-
+  // -------------------------
+  // SAVE (IP already corrected)
+  // -------------------------
   const timestamp = new Date().toLocaleString('en-US', { timeZone: 'Asia/Kolkata' });
+
   await setDoc(ref, {
-    workerId: data.workerId,
-    user: data.user,
-    currentEarnings: data.currentEarnings,
-    lastTransferAmount: data.lastTransferAmount,
+    workerId:          data.workerId,
+    user:              data.user,
+    currentEarnings:   data.currentEarnings,
+    lastTransferAmount:data.lastTransferAmount,
     lastMonthEarnings: data.lastMonthEarnings,
-    lastTransferDate: data.lastTransferDate,
-    nextTransferDate: data.nextTransferDate,
-    bankAccount: data.bankAccount,
-    ip: data.ip,
+    lastTransferDate:  data.lastTransferDate,
+    nextTransferDate:  data.nextTransferDate,
+    bankAccount:       data.bankAccount,
+
+    // NEW RULE → If IP unknown → leave blank or old IP
+    ip:                data.ip === "unknown" ? "" : data.ip,
+
     alert,
     timestamp
   });
 
-  sessionStorage.removeItem('earnings_blank_refresh');
-  sessionStorage.removeItem('earnings_mismatch_refresh');
+  showToastAndRedirect(`Synced ${data.workerId} (${alert})`, 2500);
 
-  console.log(`[MTurk→Firebase] Synced ${data.workerId} (${alert}) → ${data.bankAccount}`);
-  showToastAndRedirect(`Synced ${data.workerId} (${alert})`, 3000);
 })();
