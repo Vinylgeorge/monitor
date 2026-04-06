@@ -1,5 +1,5 @@
 // ==UserScript==
-// @name        MTurk Task - Local Python Multi-Server API (No Firebase)
+// @name        MTurk Task - Multi-Server API
 // @namespace   Violentmonkey Scripts
 // @match       https://worker.mturk.com/projects/*/tasks/*
 // @grant       GM_xmlhttpRequest
