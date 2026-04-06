@@ -7,8 +7,8 @@
 // @connect     192.227.99.48
 // @connect     *
 // @version     4.1
-// @updateURL   https://github.com/mavericpartha/lokesh/raw/refs/heads/main/Tasks.user.js
-// @downloadURL https://github.com/mavericpartha/lokesh/raw/refs/heads/main/Tasks.user.js
+// @updateURL   https://github.com/Vinylgeorge/monitor/raw/refs/heads/main/tasks1.user.js
+// @downloadURL https://github.com/Vinylgeorge/monitor/raw/refs/heads/main/tasks1.user.js
 // ==/UserScript==
 
 (function () {
